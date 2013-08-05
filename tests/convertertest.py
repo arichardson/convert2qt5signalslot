@@ -20,7 +20,6 @@ refactoredFile = os.path.abspath(testfile + ".refactored")
 
 os.path.exists(originalFile) or sys.exit(originalFile + " does not exist")
 os.path.exists(refactoredFile) or sys.exit(refactoredFile + " does not exist")
-os.path.realpath(testfile) == originalFile or sys.exit(testfile + " must link to " + originalFile)
 
 #create a temporary dir that is deleted at exit
 testDir = tempfile.mkdtemp()
