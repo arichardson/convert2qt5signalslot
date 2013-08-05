@@ -47,7 +47,7 @@ signalSlotConverter["-p", testDir, convertFile] & FG
 
 print("Comparing to expected result...")
 #diff will fail with exit code 1 if files differ, so just running this is enough
-diff = cmd.diff("-u", convertFile, refactoredFile)
+diff = cmd.diff("-u", refactoredFile, convertFile)
 
 
 
