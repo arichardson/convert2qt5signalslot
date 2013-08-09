@@ -15,6 +15,7 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/Support/Signals.h>
 
 
 using namespace clang;
@@ -230,6 +231,7 @@ static llvm::cl::extrahelp common_help(CommonOptionsParser::HelpMessage);
 
 int main(int argc, const char* argv[]) {
   CommonOptionsParser options(argc, argv);
+  llvm::sys::PrintStackTraceOnErrorSignal();
   tooling::RefactoringTool tool(options.getCompilations(), options.getSourcePathList());
 
   for (const std::string& s : options.getSourcePathList()) {
