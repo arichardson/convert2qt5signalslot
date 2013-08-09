@@ -2,18 +2,19 @@
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
 
-#include "clang/ASTMatchers/ASTMatchers.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/Basic/SourceManager.h"
-#include "clang/Frontend/FrontendActions.h"
-#include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/Tooling/Refactoring.h"
-#include "clang/Tooling/Tooling.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/Lex/Lexer.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/Casting.h"
+#include <clang/ASTMatchers/ASTMatchers.h>
+#include <clang/ASTMatchers/ASTMatchFinder.h>
+#include <clang/Basic/SourceManager.h>
+#include <clang/Frontend/FrontendActions.h>
+#include <clang/Tooling/CommonOptionsParser.h>
+#include <clang/Tooling/Refactoring.h>
+#include <clang/Tooling/Tooling.h>
+#include <clang/AST/ASTContext.h>
+#include <clang/Lex/Lexer.h>
+#include <clang/Lex/Preprocessor.h>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/Format.h>
+#include <llvm/Support/Casting.h>
 
 
 using namespace clang;
@@ -61,6 +62,31 @@ std::string signalSlotName(const StringLiteral* literal) {
     return bytes.substr(1, bytes.find_first_of('(') - 1);
 }
 
+/** expr->getLocStart() + expr->getLocEnd() don't return the proper location if the expression is a macro expansion
+ * this function fixes this
+ */
+static SourceRange getMacroExpansionRange(const Expr* expr,SourceManager* manager, bool* validMacroExpansion) {
+    SourceLocation beginLoc;
+    const bool isMacroStart = Lexer::isAtStartOfMacroExpansion(expr->getLocStart(), *manager, options, &beginLoc);
+    if (!isMacroStart)
+        beginLoc = expr->getLocStart();
+    SourceLocation endLoc;
+    const bool isMacroEnd = Lexer::isAtEndOfMacroExpansion(expr->getLocEnd(), *manager, options, &endLoc);
+    if (!isMacroEnd)
+        endLoc = expr->getLocEnd();
+    if (validMacroExpansion)
+        *validMacroExpansion = isMacroStart && isMacroEnd;
+    return SourceRange(beginLoc, endLoc);
+}
+
+static void printReplacementRange(SourceRange range, SourceManager* manager, const std::string& replacement) {
+    llvm::outs() << "Replacing ";
+    range.getBegin().print(llvm::outs(), *manager);
+    llvm::outs() << " to ";
+    range.getEnd().print(llvm::outs(), *manager);
+    llvm::outs() << " with " << replacement << "\n";
+}
+
 void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     const CallExpr* call = result.Nodes.getNodeAs<CallExpr>("callExpr");
     const CXXMethodDecl* decl = result.Nodes.getNodeAs<CXXMethodDecl>("decl");
@@ -86,7 +112,7 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
         receiver = call->getArg(2);
         receiverString = expr2str(receiver, result.SourceManager);
         slot = call->getArg(3);
-        connectionTypeExpr =  call->getArg(4);
+        connectionTypeExpr = call->getArg(4);
 
     }
     else if (numArgs == 4) {
@@ -103,7 +129,15 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
         return;
     }
 
-
+    //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
+    bool signalRangeOk;
+    SourceRange signalRange = getMacroExpansionRange(signal, result.SourceManager, &signalRangeOk);
+    bool slotRangeOk;
+    SourceRange slotRange = getMacroExpansionRange(slot, result.SourceManager, &slotRangeOk);
+    if (!signalRangeOk || !slotRangeOk) {
+        llvm::errs() << "connect() call must use SIGNAL/SLOT macro so that conversion can work!\n";
+        return;
+    }
 
     const std::string signalName = signalSlotName(result.Nodes.getNodeAs<clang::StringLiteral>("signalStr"));
     const std::string slotName = signalSlotName(result.Nodes.getNodeAs<clang::StringLiteral>("slotStr"));
@@ -135,11 +169,13 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     }
     llvm::outs() << "\n";
 
-    const std::string newCall = Twine("connect(" + senderString + ", &" + senderType + "::" + signalName + ", " + receiverString + ", &" + receiverType + "::" + slotName + connectionType + ")").str();
-
-    llvm::outs() << "\n\n" << "old: " << oldCall << "\n" << "new: " << newCall << "\n\n";
-    clang::CharSourceRange range = clang::CharSourceRange::getTokenRange(call->getSourceRange());
-    replacements->insert(Replacement(*result.SourceManager, range, newCall));
+    const std::string signalReplacement = "&" + senderType + "::" + signalName;
+    //if converting member version we have to add the previously implicit this argument
+    const std::string slotReplacement = (numArgs == 4 ? "this, &" : "&") + receiverType + "::" + slotName;
+    printReplacementRange(signalRange, result.SourceManager, signalReplacement);
+    replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
+    printReplacementRange(slotRange, result.SourceManager, slotReplacement);
+    replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(slotRange), slotReplacement));
 }
 
 void ConnectConverter::setupMatchers(MatchFinder* match_finder) {

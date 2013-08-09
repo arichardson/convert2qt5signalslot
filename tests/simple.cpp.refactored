@@ -17,4 +17,13 @@ Test::Test() {
     connect(this, &Test::objectNameChanged, this, &Test::deleteLater);
     //same thing, but use a connection type
     connect(this, &Test::objectNameChanged, this, &Test::deleteLater, Qt::QueuedConnection);
+    
+    //handle line breaks
+    connect(this,
+    	&Test::objectNameChanged,
+    	this, &Test::deleteLater
+    );
+    //same thing, but use a connection type
+    connect(this, &Test::objectNameChanged, this, &Test::deleteLater,
+    	Qt::QueuedConnection);
 }

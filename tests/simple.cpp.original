@@ -17,4 +17,13 @@ Test::Test() {
     connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()));
     //same thing, but use a connection type
     connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()), Qt::QueuedConnection);
+    
+    //handle line breaks
+    connect(this,
+    	SIGNAL(objectNameChanged(QString)),
+    	SLOT(deleteLater())
+    );
+    //same thing, but use a connection type
+    connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()),
+    	Qt::QueuedConnection);
 }
