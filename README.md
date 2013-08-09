@@ -32,3 +32,8 @@ If that is not the case you can do e.g. `ln -s /usr/lib64/clang /usr/local/lib64
 If you had a call like `connect(obj, SIGNAL(foo()), SLOT(onFoo())` and the type of `obj` is in a namespace (i.e. `MyNS::MyClass`) then the generated code will be `connect(obj, &MyClass::foo, this, &MyClass::onFoo)`. This may fail to compile unless you have a using directive for that class or namespace.
 
 This issue will be resolved once I find out which namespaces/classes have a using directive, so that it won't add the namespace if not necessary.
+
+###Overloaded signals/slots not supported yet
+You will have to resolve thos cases manually until I add that feature
+
+See the note at http://qt-project.org/doc/qt-5.0/qtcore/signalsandslots.html for how to resolve that
