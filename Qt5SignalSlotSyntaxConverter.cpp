@@ -232,6 +232,13 @@ int main(int argc, const char* argv[]) {
   CommonOptionsParser options(argc, argv);
   llvm::sys::PrintStackTraceOnErrorSignal();
   tooling::RefactoringTool tool(options.getCompilations(), options.getSourcePathList());
+  if (options.getSourcePathList().size() != 1) {
+      llvm::errs() << "Must pass exactly one source file.\n";
+                      "Multiple source files may work in a future release.\n";
+                      "For now you can use find+xargs (see README)\n";
+
+      return 1;
+  }
 
   for (const std::string& s : options.getSourcePathList()) {
       refactoringFiles.push_back(getRealPath(s));
