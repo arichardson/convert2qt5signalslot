@@ -187,8 +187,8 @@ void ConnectConverter::setupMatchers(MatchFinder* match_finder) {
                             parameterCountIs(4)
                     )
              )),
-             hasArgument(1, hasDescendant(id("signalStr", stringLiteral()))),
-             hasArgument(2, hasDescendant(id("slotStr", stringLiteral())))
+             hasArgument(1, anyOf(hasDescendant(stringLiteral().bind("signalStr")), stringLiteral().bind("signalStr"))),
+             hasArgument(2, anyOf(hasDescendant(stringLiteral().bind("slotStr")), stringLiteral().bind("slotStr")))
 
     )), &matcher);
 
@@ -201,8 +201,8 @@ void ConnectConverter::setupMatchers(MatchFinder* match_finder) {
                     )
              )),
 
-             hasArgument(1, hasDescendant(id("signalStr", stringLiteral()))),
-             hasArgument(3, hasDescendant(id("slotStr", stringLiteral())))
+             hasArgument(1, anyOf(hasDescendant(stringLiteral().bind("signalStr")), stringLiteral().bind("signalStr"))),
+             hasArgument(3, anyOf(hasDescendant(stringLiteral().bind("slotStr")), stringLiteral().bind("slotStr")))
 
     )), &matcher);
 }
