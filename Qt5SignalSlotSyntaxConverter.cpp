@@ -43,7 +43,6 @@ public:
     void setupMatchers(MatchFinder* matchFinder);
 private:
     ConnectCallMatcher matcher;
-    ConnectCallLogger logger;
 };
 
 
