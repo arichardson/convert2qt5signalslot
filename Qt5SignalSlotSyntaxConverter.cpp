@@ -24,6 +24,8 @@ using namespace clang::ast_matchers;
 namespace {
 
 
+std::vector<std::string> refactoringFiles;
+
 class ConnectCallMatcher : public MatchFinder::MatchCallback {
 public:
     ConnectCallMatcher(Replacements* reps) : replacements(reps) {}
@@ -40,13 +42,14 @@ public:
     void setupMatchers(MatchFinder* matchFinder);
 private:
     ConnectCallMatcher matcher;
+    ConnectCallLogger logger;
 };
 
 
 LangOptions options = []() { LangOptions l; l.CPlusPlus11 = true; return l; }();
 
 //http://stackoverflow.com/questions/11083066/getting-the-source-behind-clangs-ast
-std::string expr2str(const Expr *d, SourceManager* manager) {
+static std::string expr2str(const Expr *d, SourceManager* manager) {
     clang::SourceLocation b(d->getLocStart()), _e(d->getLocEnd());
     clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *manager, options));
     return std::string(manager->getCharacterData(b), manager->getCharacterData(e)-manager->getCharacterData(b));
@@ -57,9 +60,15 @@ std::string expr2str(const Expr *d, SourceManager* manager) {
  * then a null character, and then filename + linenumber
  *  the interesting part is from the second char to the first '(' character
  */
-std::string signalSlotName(const StringLiteral* literal) {
+static std::string signalSlotName(const StringLiteral* literal) {
     StringRef bytes = literal->getBytes();
     return bytes.substr(1, bytes.find_first_of('(') - 1);
+}
+
+static std::string getRealPath(const std::string& path) {
+    char buf[PATH_MAX];
+    realpath(path.c_str(), buf);
+    return std::string(buf);
 }
 
 /** expr->getLocStart() + expr->getLocEnd() don't return the proper location if the expression is a macro expansion
@@ -90,7 +99,7 @@ static void printReplacementRange(SourceRange range, SourceManager* manager, con
 void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     const CallExpr* call = result.Nodes.getNodeAs<CallExpr>("callExpr");
     const CXXMethodDecl* decl = result.Nodes.getNodeAs<CXXMethodDecl>("decl");
-    llvm::outs() << "Match " << ++count << " found at ";
+    llvm::outs() << "\nMatch " << ++count << " found at ";
     call->getExprLoc().print(llvm::outs(), *result.SourceManager);
     unsigned numArgs = call->getNumArgs();
     llvm::outs() << ", num args: " << numArgs << ": ";
@@ -99,6 +108,14 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
 
     const std::string oldCall = expr2str(call, result.SourceManager);
     llvm::outs() << oldCall << "\n";
+
+    //check if we should touch this file
+    const std::string filename = getRealPath(result.SourceManager->getFilename(call->getExprLoc()));
+    if (std::find(refactoringFiles.begin(), refactoringFiles.end(), filename) == refactoringFiles.end()) {
+        llvm::outs() << "However " << filename << " is not one of the files to be refactored!\n";
+        return;
+    }
+
     const Expr* sender = call->getArg(0);
     const Expr* signal;
     const Expr* slot;
@@ -215,9 +232,12 @@ int main(int argc, const char* argv[]) {
   CommonOptionsParser options(argc, argv);
   tooling::RefactoringTool tool(options.getCompilations(), options.getSourcePathList());
 
+  for (const std::string& s : options.getSourcePathList()) {
+      refactoringFiles.push_back(getRealPath(s));
+  }
+
   MatchFinder matchFinder;
   ConnectConverter converter(&tool.getReplacements());
   converter.setupMatchers(&matchFinder);
-
   return tool.runAndSave(newFrontendActionFactory(&matchFinder));
 }
