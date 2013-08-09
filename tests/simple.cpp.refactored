@@ -1,22 +1,20 @@
 #include <QtCore/QObject>
-#include <QtWidgets/QSpinBox>
-#include <QtWidgets/QPushButton>
 
-class Test : public QSpinBox {
+class Test : public QObject {
     Q_OBJECT
 public:
     Test();
 private:
-    QPushButton button;
+    QObject* other;
 };
 
 Test::Test() {
     //this is calling the static method QObject::connect()
-    connect(this, &Test::valueChanged, &button, &QPushButton::toggle);
+    connect(this, &Test::objectNameChanged, other, &QObject::deleteLater);
     //same thing, but use a connection type
-    connect(this, &Test::valueChanged, &button, &QPushButton::toggle, Qt::QueuedConnection);
+    connect(this, &Test::objectNameChanged, other, &QObject::deleteLater, Qt::QueuedConnection);
     //here we are using the inline member version
-    connect(this, &Test::valueChanged, this, &Test::setValue);
+    connect(this, &Test::objectNameChanged, this, &Test::deleteLater);
     //same thing, but use a connection type
-    connect(this, &Test::valueChanged, this, &Test::setValue, Qt::QueuedConnection);
+    connect(this, &Test::objectNameChanged, this, &Test::deleteLater, Qt::QueuedConnection);
 }

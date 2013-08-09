@@ -22,9 +22,9 @@ os.path.exists(originalFile) or sys.exit(originalFile + " does not exist")
 os.path.exists(refactoredFile) or sys.exit(refactoredFile + " does not exist")
 
 #create a temporary dir that is deleted at exit
-testDir = tempfile.mkdtemp()
+testDir = tempfile.mkdtemp(prefix = "convertqt5_")
 sourceDir = os.path.abspath(os.getcwd())
-atexit.register(shutil.rmtree, testDir)
+#atexit.register(shutil.rmtree, testDir)
 
 #copy to test dir
 convertFile = os.path.join(testDir, testfile);

@@ -1,22 +1,20 @@
 #include <QtCore/QObject>
-#include <QtWidgets/QSpinBox>
-#include <QtWidgets/QPushButton>
 
-class Test : public QSpinBox {
+class Test : public QObject {
     Q_OBJECT
 public:
     Test();
 private:
-    QPushButton button;
+    QObject* other;
 };
 
 Test::Test() {
     //this is calling the static method QObject::connect()
-    connect(this, SIGNAL(valueChanged(int)), &button, SLOT(toggle()));
+    connect(this, SIGNAL(objectNameChanged(QString)), other, SLOT(deleteLater()));
     //same thing, but use a connection type
-    connect(this, SIGNAL(valueChanged(int)), &button, SLOT(toggle()), Qt::QueuedConnection);
+    connect(this, SIGNAL(objectNameChanged(QString)), other, SLOT(deleteLater()), Qt::QueuedConnection);
     //here we are using the inline member version
-    connect(this, SIGNAL(valueChanged(int)), SLOT(setValue(int)));
+    connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()));
     //same thing, but use a connection type
-    connect(this, SIGNAL(valueChanged(int)), SLOT(setValue(int)), Qt::QueuedConnection);
+    connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()), Qt::QueuedConnection);
 }
