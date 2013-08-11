@@ -24,3 +24,7 @@ add_test(NAME simple
 add_test(NAME overloaded
 	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests"
 	COMMAND python ./convertertest.py "${CMAKE_BINARY_DIR}/convert2qt5signalslot" overloaded.cpp)
+
+add_test(NAME namespaces
+	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests"
+	COMMAND python ./convertertest.py "${CMAKE_BINARY_DIR}/convert2qt5signalslot" namespaces.cpp)
