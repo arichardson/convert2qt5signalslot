@@ -138,9 +138,10 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
         convert(result);
     }
     catch (const std::exception& e) {
-        llvm::errs() << "Failed to convert match: " << e.what() << "\n";
-        return;
+        (llvm::errs() << "Failed to convert match: ").write_escaped(e.what()) << "\n";
     }
+    llvm::outs().flush();
+    llvm::errs().flush();
 }
 
 
