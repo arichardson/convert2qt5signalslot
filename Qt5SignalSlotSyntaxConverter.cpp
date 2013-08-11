@@ -34,6 +34,11 @@ public:
     ConnectCallMatcher(Replacements* reps) : replacements(reps) {}
     virtual void run(const MatchFinder::MatchResult& result) override;
     void convert(const MatchFinder::MatchResult& result);
+    /**
+     * @return The new signal/slot expression for the connect call
+     */
+    static std::string calculateReplacementStr(const MatchFinder::MatchResult& result, const CXXRecordDecl* type,
+            const StringLiteral* connectStr, bool prependThis);
 private:
     int count = 0;
     Replacements* replacements;
@@ -72,13 +77,29 @@ static std::string expr2str(const Expr *d, SourceManager* manager, ASTContext* c
  * then a null character, and then filename + linenumber
  *  the interesting part is from the second char to the first '(' character
  */
-static std::string signalSlotName(const StringLiteral* literal) {
-    StringRef bytes = literal->getBytes();
+static StringRef signalSlotName(const StringLiteral* literal) {
+    StringRef bytes = literal->getString();
     size_t bracePos = bytes.find_first_of('(');
     if (!(bytes[0] == '0' || bytes[0] == '1' || bytes[0] == '2') || bracePos == StringRef::npos) {
-        throw std::runtime_error(("invalid format of signal slot string:" + bytes).str());
+        throw std::runtime_error(("invalid format of signal slot string: " + bytes).str());
     }
     return bytes.substr(1, bracePos - 1);
+}
+
+static StringRef signalSlotParameters(const StringLiteral* literal) {
+    StringRef bytes = literal->getString();
+    auto openingPos = bytes.find_first_of('(');
+    auto nullPos = bytes.rfind('\0');
+    if (openingPos == StringRef::npos || nullPos == StringRef::npos) {
+        throw std::runtime_error(("invalid format of signal slot string: " + bytes).str());
+    }
+    auto closingPos = bytes.rfind(')', nullPos);
+    if (closingPos == StringRef::npos || closingPos <= openingPos) {
+        throw std::runtime_error(("invalid format of signal slot string: " + bytes).str());
+    }
+    StringRef result = bytes.slice(openingPos + 1, closingPos);
+    //((llvm::outs() << "Parameters from '").write_escaped(bytes) << "' are '").write_escaped(result) << "'\n";
+    return result;
 }
 
 static std::string getRealPath(const std::string& path) {
@@ -181,43 +202,71 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
         throw std::runtime_error("connect() call must use SIGNAL/SLOT macro so that conversion can work!\n");
     }
 
-    const std::string signalName = signalSlotName(result.Nodes.getNodeAs<clang::StringLiteral>("signalStr"));
-    const std::string slotName = signalSlotName(result.Nodes.getNodeAs<clang::StringLiteral>("slotStr"));
+    const StringLiteral* signalLiteral = result.Nodes.getNodeAs<clang::StringLiteral>("signalStr");
+    const StringLiteral* slotLiteral = result.Nodes.getNodeAs<clang::StringLiteral>("slotStr");
 
     const CXXRecordDecl* senderTypeDecl = sender->getBestDynamicClassType();
-    const std::string senderType = senderTypeDecl->getDeclName().getAsString();
     const CXXRecordDecl* receiverTypeDecl = receiver->getBestDynamicClassType();
-    const std::string receiverType = receiverTypeDecl->getDeclName().getAsString();
 
 
-    llvm::outs() << "\n";
-
-    const std::string senderString = expr2str(sender, result.SourceManager, result.Context);
-    llvm::outs() << "sender: " <<  senderString << " , type: " << senderType;
-    //sender->dumpPretty(*result.Context);
-
-    llvm::outs() << ", signal: " << signalName;
-    llvm::outs() << ", receiver: " << receiverString  << " , type: " << receiverType;
-    llvm::outs() << ", signal: " << slotName;
-    llvm::outs() << "type: ";
-    std::string connectionType;
-    if (connectionTypeExpr->isDefaultArgument()) {
-        llvm::outs() << "default param";
-        connectionType = "";
-    }
-    else {
-        llvm::outs() << expr2str(connectionTypeExpr, result.SourceManager, result.Context);
-        connectionType = ", " + expr2str(connectionTypeExpr, result.SourceManager, result.Context);
-    }
-    llvm::outs() << "\n";
-
-    const std::string signalReplacement = "&" + senderType + "::" + signalName;
-    //if converting member version we have to add the previously implicit this argument
-    const std::string slotReplacement = (numArgs == 4 ? "this, &" : "&") + receiverType + "::" + slotName;
+    const std::string signalReplacement = calculateReplacementStr(result, senderTypeDecl, signalLiteral, false);
+    std::string slotReplacement = calculateReplacementStr(result, receiverTypeDecl, slotLiteral, numArgs == 4);
     printReplacementRange(signalRange, result.SourceManager, signalReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
     printReplacementRange(slotRange, result.SourceManager, slotReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(slotRange), slotReplacement));
+}
+
+std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::MatchResult& matchResult, const CXXRecordDecl* type,
+        const StringLiteral* connectStr, bool prependThis) {
+    struct SearchInfo {
+        std::vector<const CXXMethodDecl*> results;
+        StringRef methodName;
+        StringRef parameters;
+    } searchInfo;
+    searchInfo.methodName = signalSlotName(connectStr);
+    auto searchLambda = [](const CXXRecordDecl* cls, void *userData) {
+        auto searchInfo = static_cast<SearchInfo*>(userData);
+        for (auto it = cls->method_begin(); it != cls->method_end(); ++it) {
+            if (!it->getIdentifier()) {
+                //is not a normal C++ method, maybe constructor or destructor
+                continue;
+            }
+            if (it->getName() == searchInfo->methodName) {
+                searchInfo->results.push_back(*it);
+//                llvm::outs() << "Found " << searchInfo->results.size() << ". defintion: "
+//                        << cls->getName() << "::" << it->getName() << "\n";
+            }
+        }
+        return true;
+    };
+    searchLambda(type, &searchInfo); //search baseClass
+    type->forallBases(searchLambda, &searchInfo, false); //now find in base classes
+    SmallString<128> result;
+    if (prependThis) {
+        result = "this, ";
+    }
+    const bool resolveOverloads = searchInfo.results.size() > 1; //TODO skip overriden methods!
+    if (resolveOverloads) {
+        llvm::outs() << type->getName() << "::" << searchInfo.methodName << " is a overloaded signal/slot. Found "
+                << searchInfo.results.size() << " overloads.\n";
+        //overloaded signal/slot found -> we have to disambiguate
+        searchInfo.parameters = signalSlotParameters(connectStr);
+        result += "static_cast<void("; //TODO return type
+        result += type->getName();
+        result += "::*)(";
+        result += searchInfo.parameters;
+        result += ")>(";
+    }
+    result += '&';
+    result += type->getName();
+    result += "::";
+    result += searchInfo.methodName;
+    if (resolveOverloads) {
+        result += ')';
+    }
+    return result.str();
+
 }
 
 void ConnectConverter::setupMatchers(MatchFinder* match_finder) {

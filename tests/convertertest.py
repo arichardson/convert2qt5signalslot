@@ -34,7 +34,7 @@ with open(os.path.join(testDir, "CMakeLists.txt"), "a") as cmakelist:
     cmakelist.write("cmake_minimum_required(VERSION 2.8.11)\n");
     cmakelist.write("find_package(Qt5Widgets)\n");
     #adapt the next line to your compiler as needed
-    cmakelist.write("include_directories(/usr/lib64/gcc/x86_64-suse-linux/4.7/include/ /usr/lib64/gcc/x86_64-suse-linux/4.7/include-fixed/)\n"); #hack for the builtin stddef.h
+    cmakelist.write("include_directories(/usr/lib64/clang/3.3/include)\n"); #hack for the builtin stddef.h
     cmakelist.write("add_executable(test " + testfile + ")\n");
     cmakelist.write("target_link_libraries(test Qt5::Widgets)\n");
 
