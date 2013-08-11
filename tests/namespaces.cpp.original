@@ -1,13 +1,11 @@
 #include <QtCore/QObject>
 
-
-namespace NS {
-class Foo  : public QObject {
+namespace NS1 {
+class Foo1  : public QObject {
     Q_OBJECT
 public:
     void someSlot() {}
-}
-
+};
 }
 
 namespace NS2 {
@@ -15,13 +13,12 @@ class Foo2 : public QObject {
     Q_OBJECT
 public:
     void someSlot() {}
-}
+};
 class Bar2 : public QObject {
     Q_OBJECT
 public:
     void someSlot() {}
-}
-
+};
 }
 
 namespace NS3 {
@@ -29,8 +26,7 @@ class Foo3 : public QObject {
     Q_OBJECT
 public:
     void someSlot() {}
-}
-
+};
 }
 
 class Test : public QObject {
@@ -39,23 +35,11 @@ public:
     void globalUsingDirectives();
     void localUsingDirectives();
 private:
-    NS1::Foo* foo1;
+    NS1::Foo1* foo1;
     NS2::Foo2* foo2;
     NS2::Bar2* bar2;
     NS3::Foo3* foo3;
 };
-
-
-using namespace NS3;
-using NS2::Foo2;
-
-
-void Test::globalUsingDirectives() {
-    connect(this, SIGNAL(objectNameChanged(QString)), foo1, SLOT(someSlot()));
-    connect(this, SIGNAL(objectNameChanged(QString)), foo2, SLOT(someSlot()));
-    connect(this, SIGNAL(objectNameChanged(QString)), bar2, SLOT(someSlot()));
-    connect(this, SIGNAL(objectNameChanged(QString)), foo3, SLOT(someSlot()));
-}
 
 void Test::localUsingDirectives() {
     connect(this, SIGNAL(objectNameChanged(QString)), foo1, SLOT(someSlot()));
@@ -68,5 +52,15 @@ void Test::localUsingDirectives() {
     connect(this, SIGNAL(objectNameChanged(QString)), foo2, SLOT(someSlot()));
     //however NS2::Bar2 does
     connect(this, SIGNAL(objectNameChanged(QString)), bar2, SLOT(someSlot()));
-    
+}
+
+using namespace NS3;
+using NS2::Foo2;
+
+void Test::globalUsingDirectives() {
+	//just the same as the local test, however with using directives in the global scope
+    connect(this, SIGNAL(objectNameChanged(QString)), foo1, SLOT(someSlot()));
+    connect(this, SIGNAL(objectNameChanged(QString)), foo2, SLOT(someSlot()));
+    connect(this, SIGNAL(objectNameChanged(QString)), bar2, SLOT(someSlot()));
+    connect(this, SIGNAL(objectNameChanged(QString)), foo3, SLOT(someSlot()));
 }
