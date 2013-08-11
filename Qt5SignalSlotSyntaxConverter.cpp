@@ -17,6 +17,8 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/Signals.h>
 
+#include <stdexcept>
+
 
 using namespace clang;
 using namespace clang::tooling;
@@ -31,6 +33,7 @@ class ConnectCallMatcher : public MatchFinder::MatchCallback {
 public:
     ConnectCallMatcher(Replacements* reps) : replacements(reps) {}
     virtual void run(const MatchFinder::MatchResult& result) override;
+    void convert(const MatchFinder::MatchResult& result);
 private:
     int count = 0;
     Replacements* replacements;
@@ -49,10 +52,19 @@ private:
 LangOptions options = []() { LangOptions l; l.CPlusPlus11 = true; return l; }();
 
 //http://stackoverflow.com/questions/11083066/getting-the-source-behind-clangs-ast
-static std::string expr2str(const Expr *d, SourceManager* manager) {
+static std::string expr2str(const Expr *d, SourceManager* manager, ASTContext* ctx) {
     clang::SourceLocation b(d->getLocStart()), _e(d->getLocEnd());
     clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *manager, options));
-    return std::string(manager->getCharacterData(b), manager->getCharacterData(e)-manager->getCharacterData(b));
+    const char* start = manager->getCharacterData(b);
+    const char* end = manager->getCharacterData(e);
+    if (!start || !end || end < start) {
+        llvm::errs() << "could not get string for ";
+        d->dumpPretty(*ctx);
+        llvm::errs() << " at " << b.printToString(*manager) << "\nAST:\n";
+        d->dumpColor();
+        throw std::runtime_error("Failed to convert expression to string");
+    }
+    return std::string(start, end - start);
 }
 
 /** Signal/Slot string literals are always
@@ -62,7 +74,11 @@ static std::string expr2str(const Expr *d, SourceManager* manager) {
  */
 static std::string signalSlotName(const StringLiteral* literal) {
     StringRef bytes = literal->getBytes();
-    return bytes.substr(1, bytes.find_first_of('(') - 1);
+    size_t bracePos = bytes.find_first_of('(');
+    if (!(bytes[0] == '0' || bytes[0] == '1' || bytes[0] == '2') || bracePos == StringRef::npos) {
+        throw std::runtime_error(("invalid format of signal slot string:" + bytes).str());
+    }
+    return bytes.substr(1, bracePos - 1);
 }
 
 static std::string getRealPath(const std::string& path) {
@@ -93,10 +109,21 @@ static void printReplacementRange(SourceRange range, SourceManager* manager, con
     range.getBegin().print(llvm::outs(), *manager);
     llvm::outs() << " to ";
     range.getEnd().print(llvm::outs(), *manager);
-    llvm::outs() << " with " << replacement << "\n";
+    llvm::outs() << " with '" << replacement << "'\n";
 }
 
 void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
+    try {
+        convert(result);
+    }
+    catch (const std::exception& e) {
+        llvm::errs() << "Failed to convert match: " << e.what() << "\n";
+        return;
+    }
+}
+
+
+void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     const CallExpr* call = result.Nodes.getNodeAs<CallExpr>("callExpr");
     const CXXMethodDecl* decl = result.Nodes.getNodeAs<CXXMethodDecl>("decl");
     llvm::outs() << "\nMatch " << ++count << " found at ";
@@ -106,13 +133,13 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
 
     //call->dumpPretty(*result.Context); //show result after macro expansion
 
-    const std::string oldCall = expr2str(call, result.SourceManager);
+    const std::string oldCall = expr2str(call, result.SourceManager, result.Context);
     llvm::outs() << oldCall << "\n";
 
     //check if we should touch this file
     const std::string filename = getRealPath(result.SourceManager->getFilename(call->getExprLoc()));
     if (std::find(refactoringFiles.begin(), refactoringFiles.end(), filename) == refactoringFiles.end()) {
-        llvm::outs() << "However " << filename << " is not one of the files to be refactored!\n";
+        throw std::runtime_error("Found match in file '" + filename + "' which is not one of the files to be refactored!");
         return;
     }
 
@@ -127,7 +154,7 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
         //static QObject::connect
         signal = call->getArg(1);
         receiver = call->getArg(2);
-        receiverString = expr2str(receiver, result.SourceManager);
+        receiverString = expr2str(receiver, result.SourceManager, result.Context);
         slot = call->getArg(3);
         connectionTypeExpr = call->getArg(4);
 
@@ -142,8 +169,7 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
         receiverString = "this";
     }
     else {
-        llvm::errs() << "Bad number of args: " << numArgs << "\n";
-        return;
+        throw std::runtime_error("Bad number of args: " + std::to_string(numArgs));
     }
 
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
@@ -152,8 +178,7 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     bool slotRangeOk;
     SourceRange slotRange = getMacroExpansionRange(slot, result.SourceManager, &slotRangeOk);
     if (!signalRangeOk || !slotRangeOk) {
-        llvm::errs() << "connect() call must use SIGNAL/SLOT macro so that conversion can work!\n";
-        return;
+        throw std::runtime_error("connect() call must use SIGNAL/SLOT macro so that conversion can work!\n");
     }
 
     const std::string signalName = signalSlotName(result.Nodes.getNodeAs<clang::StringLiteral>("signalStr"));
@@ -167,7 +192,7 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
 
     llvm::outs() << "\n";
 
-    const std::string senderString = expr2str(sender, result.SourceManager);
+    const std::string senderString = expr2str(sender, result.SourceManager, result.Context);
     llvm::outs() << "sender: " <<  senderString << " , type: " << senderType;
     //sender->dumpPretty(*result.Context);
 
@@ -181,8 +206,8 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
         connectionType = "";
     }
     else {
-        llvm::outs() << expr2str(connectionTypeExpr, result.SourceManager);
-        connectionType = ", " + expr2str(connectionTypeExpr, result.SourceManager);
+        llvm::outs() << expr2str(connectionTypeExpr, result.SourceManager, result.Context);
+        connectionType = ", " + expr2str(connectionTypeExpr, result.SourceManager, result.Context);
     }
     llvm::outs() << "\n";
 
