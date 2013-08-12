@@ -19,6 +19,7 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Signals.h>
 
+#include <atomic>
 #include <stdexcept>
 
 
@@ -30,11 +31,12 @@ namespace {
 static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
 static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clCategory), llvm::cl::ZeroOrMore,
         llvm::cl::desc("signals/slots with this prefix will be skipped (useful for Q_PRIVATE_SLOTS). May be passed multiple times.") );
-std::vector<std::string> refactoringFiles;
+static std::vector<std::string> refactoringFiles;
 
 class ConnectCallMatcher : public MatchFinder::MatchCallback {
 public:
-    ConnectCallMatcher(Replacements* reps) : replacements(reps) {}
+    ConnectCallMatcher(Replacements* reps) : foundMatches(0), convertedMatches(0),
+            skippedMatches(0), failedMatches(0), replacements(reps) {}
     virtual void run(const MatchFinder::MatchResult& result) override;
     void convert(const MatchFinder::MatchResult& result);
     /**
@@ -42,8 +44,12 @@ public:
      */
     static std::string calculateReplacementStr(const MatchFinder::MatchResult& result, const CXXRecordDecl* type,
             const StringLiteral* connectStr, bool prependThis);
+    void printStats() const;
 private:
-    int count = 0;
+    std::atomic_int foundMatches;
+    std::atomic_int convertedMatches;
+    std::atomic_int skippedMatches;
+    std::atomic_int failedMatches;
     Replacements* replacements;
 };
 
@@ -52,10 +58,12 @@ class ConnectConverter {
 public:
     ConnectConverter(Replacements* reps) : matcher(reps) {}
     void setupMatchers(MatchFinder* matchFinder);
+    void printStats() const {
+        matcher.printStats();
+    }
 private:
     ConnectCallMatcher matcher;
 };
-
 
 //http://stackoverflow.com/questions/11083066/getting-the-source-behind-clangs-ast
 static std::string expr2str(const Expr *d, SourceManager* manager, ASTContext* ctx) {
@@ -163,7 +171,7 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
 void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     const CallExpr* call = result.Nodes.getNodeAs<CallExpr>("callExpr");
     const CXXMethodDecl* decl = result.Nodes.getNodeAs<CXXMethodDecl>("decl");
-    llvm::outs() << "\nMatch " << ++count << " found at ";
+    llvm::outs() << "\nMatch " << ++foundMatches << " found at ";
     call->getExprLoc().print(llvm::outs(), *result.SourceManager);
     unsigned numArgs = decl->getNumParams();
     llvm::outs() << ", num args: " << numArgs << ": ";
@@ -231,6 +239,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
     printReplacementRange(slotRange, result.SourceManager, slotReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(slotRange), slotReplacement));
+    convertedMatches++;
 }
 
 std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::MatchResult& matchResult, const CXXRecordDecl* type,
@@ -321,6 +330,19 @@ void ConnectConverter::setupMatchers(MatchFinder* match_finder) {
     )), &matcher);
 }
 
+void ConnectCallMatcher::printStats() const {
+    (llvm::outs() << "Found " << foundMatches << " matches: ").changeColor(llvm::raw_ostream::GREEN) << convertedMatches << " converted sucessfully";
+    if (failedMatches > 0) {
+        (llvm::outs().resetColor() << ", ").changeColor(llvm::raw_ostream::RED) << failedMatches << " conversions failed";
+    }
+    if (skippedMatches > 0) {
+        (llvm::outs().resetColor() << ", ").changeColor(llvm::raw_ostream::YELLOW) << skippedMatches << " conversions skipped";
+    }
+    llvm::outs().resetColor() << ".\n";
+    llvm::outs().flush();
+}
+
+
 }  // namespace
 
 static llvm::cl::extrahelp common_help(CommonOptionsParser::HelpMessage);
@@ -343,5 +365,8 @@ int main(int argc, const char* argv[]) {
   MatchFinder matchFinder;
   ConnectConverter converter(&tool.getReplacements());
   converter.setupMatchers(&matchFinder);
-  return tool.runAndSave(newFrontendActionFactory(&matchFinder));
+  int retVal = tool.runAndSave(newFrontendActionFactory(&matchFinder));
+  llvm::outs() << "\n";
+  converter.printStats();
+  return retVal;
 }
