@@ -17,8 +17,7 @@ NOTE: It should actually allow passing more than one source file, but then for s
 I don't know whether this is an issue with my code, or whether it is a clang issue
 
 To convert a whole source tree you can use the following command:
-`find <dir> -iname '*.cpp' -print0 | xargs -0 -n 1 convert2qt5signalslot -p <path-to-json-compile-db>`
-Once the issue with more than one source file is fixed you can drop the `-n 1` part.
+`find <dir> -iname '*.cpp' -print0 | xargs -0 convert2qt5signalslot -p <path-to-json-compile-db>`
 
 Known problems
 ------------
