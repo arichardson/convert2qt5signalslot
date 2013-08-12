@@ -42,16 +42,16 @@ private:
 };
 
 void Test::localUsingDirectives() {
-	connect(this, &Test::objectNameChanged, foo1, &NS1::Foo1::someSlot);
-	connect(this, &Test::objectNameChanged, foo2, &NS2::Foo2::someSlot);
-	connect(this, &Test::objectNameChanged, foo3, &NS3::Foo3::someSlot);
+    connect(this, &Test::objectNameChanged, foo1, &NS1::Foo1::someSlot);
+    connect(this, &Test::objectNameChanged, foo2, &NS2::Foo2::someSlot);
+    connect(this, &Test::objectNameChanged, foo3, &NS3::Foo3::someSlot);
     
     using namespace NS3; //now we no longer need to prepend the namespace NS3
-	connect(this, &Test::objectNameChanged, foo3, &Foo3::someSlot);
+    connect(this, &Test::objectNameChanged, foo3, &Foo3::someSlot);
     using NS2::Foo2; //Foo2 no longer needs the namespace
-	connect(this, &Test::objectNameChanged, foo2, &Foo2::someSlot);
+    connect(this, &Test::objectNameChanged, foo2, &Foo2::someSlot);
     //however NS2::Bar2 does
-	connect(this, &Test::objectNameChanged, bar2, &NS2::Bar2::someSlot);
+    connect(this, &Test::objectNameChanged, bar2, &NS2::Bar2::someSlot);
 }
 
 using namespace NS3;
@@ -59,8 +59,8 @@ using NS2::Foo2;
 
 void Test::globalUsingDirectives() {
 	//just the same as the local test, however with using directives in the global scope
-	connect(this, &Test::objectNameChanged, foo1, &NS1::Foo1::someSlot);
-	connect(this, &Test::objectNameChanged, foo2, &Foo2::someSlot);
-	connect(this, &Test::objectNameChanged, bar2, &NS2::Bar2::someSlot);
-	connect(this, &Test::objectNameChanged, foo3, &Foo3::someSlot);
+    connect(this, &Test::objectNameChanged, foo1, &NS1::Foo1::someSlot);
+    connect(this, &Test::objectNameChanged, foo2, &Foo2::someSlot);
+    connect(this, &Test::objectNameChanged, bar2, &NS2::Bar2::someSlot);
+    connect(this, &Test::objectNameChanged, foo3, &Foo3::someSlot);
 }

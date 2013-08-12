@@ -9,6 +9,7 @@
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Refactoring.h>
 #include <clang/Tooling/Tooling.h>
+#include <clang/Analysis/CFG.h>
 #include <clang/AST/ASTContext.h>
 #include <clang/Lex/Lexer.h>
 #include <clang/Lex/Preprocessor.h>
@@ -150,7 +151,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     const CXXMethodDecl* decl = result.Nodes.getNodeAs<CXXMethodDecl>("decl");
     llvm::outs() << "\nMatch " << ++count << " found at ";
     call->getExprLoc().print(llvm::outs(), *result.SourceManager);
-    unsigned numArgs = call->getNumArgs();
+    unsigned numArgs = decl->getNumParams();
     llvm::outs() << ", num args: " << numArgs << ": ";
 
     //call->dumpPretty(*result.Context); //show result after macro expansion
@@ -187,7 +188,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
         assert(isa<CXXMemberCallExpr>(call));
         const CXXMemberCallExpr* cxxCall = cast<CXXMemberCallExpr>(call);
         receiver = cxxCall->getImplicitObjectArgument(); //get this pointer
-        connectionTypeExpr =  call->getArg(3);
+        connectionTypeExpr = call->getArg(3);
         receiverString = "this";
     }
     else {
@@ -260,7 +261,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::Match
         result += ")>(";
     }
     result += '&';
-    result += type->getName();
+    result += type->getQualifiedNameAsString();
     result += "::";
     result += searchInfo.methodName;
     if (resolveOverloads) {
@@ -311,7 +312,6 @@ int main(int argc, const char* argv[]) {
       llvm::errs() << "Must pass exactly one source file.\n";
                       "Multiple source files may work in a future release.\n";
                       "For now you can use find+xargs (see README)\n";
-
       return 1;
   }
 
