@@ -43,7 +43,7 @@ public:
      * @return The new signal/slot expression for the connect call
      */
     static std::string calculateReplacementStr(const MatchFinder::MatchResult& result, const CXXRecordDecl* type,
-            const StringLiteral* connectStr, bool prependThis);
+            const StringLiteral* connectStr, const std::string& prepend);
     void printStats() const;
 private:
     std::atomic_int foundMatches;
@@ -199,7 +199,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
         //static QObject::connect
         signal = call->getArg(1);
         receiver = call->getArg(2);
-        receiverString = expr2str(receiver, result.SourceManager, result.Context);
+        //receiverString = expr2str(receiver, result.SourceManager, result.Context);
         slot = call->getArg(3);
         connectionTypeExpr = call->getArg(4);
 
@@ -211,7 +211,12 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
         const CXXMemberCallExpr* cxxCall = cast<CXXMemberCallExpr>(call);
         receiver = cxxCall->getImplicitObjectArgument(); //get this pointer
         connectionTypeExpr = call->getArg(3);
-        receiverString = "this";
+        if (receiver->isImplicitCXXThis()) {
+            receiverString = "this";
+        }
+        else {
+            receiverString = expr2str(receiver, result.SourceManager, result.Context);
+        }
     }
     else {
         throw std::runtime_error("Bad number of args: " + std::to_string(numArgs));
@@ -233,8 +238,8 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     const CXXRecordDecl* receiverTypeDecl = receiver->getBestDynamicClassType();
 
 
-    const std::string signalReplacement = calculateReplacementStr(result, senderTypeDecl, signalLiteral, false);
-    std::string slotReplacement = calculateReplacementStr(result, receiverTypeDecl, slotLiteral, numArgs == 4);
+    const std::string signalReplacement = calculateReplacementStr(result, senderTypeDecl, signalLiteral, std::string());
+    std::string slotReplacement = calculateReplacementStr(result, receiverTypeDecl, slotLiteral, receiverString);
     printReplacementRange(signalRange, result.SourceManager, signalReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
     printReplacementRange(slotRange, result.SourceManager, slotReplacement);
@@ -243,7 +248,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 }
 
 std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::MatchResult& matchResult, const CXXRecordDecl* type,
-        const StringLiteral* connectStr, bool prependThis) {
+        const StringLiteral* connectStr, const std::string& prepend) {
     struct SearchInfo {
         std::vector<const CXXMethodDecl*> results;
         StringRef methodName;
@@ -275,8 +280,8 @@ std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::Match
     searchLambda(type, &searchInfo); //search baseClass
     type->forallBases(searchLambda, &searchInfo, false); //now find in base classes
     SmallString<128> result;
-    if (prependThis) {
-        result = "this, ";
+    if (!prepend.empty()) {
+        result = prepend + ", ";
     }
     const bool resolveOverloads = searchInfo.results.size() > 1; //TODO skip overriden methods!
     if (resolveOverloads) {
