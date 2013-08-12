@@ -78,7 +78,7 @@ static std::string expr2str(const Expr *d, SourceManager* manager, ASTContext* c
         d->dumpColor();
         throw std::runtime_error("Failed to convert expression to string");
     }
-    return std::string(start, end - start);
+    return std::string(start, size_t(end - start));
 }
 
 /** Signal/Slot string literals are always
@@ -185,7 +185,6 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     const std::string filename = getRealPath(result.SourceManager->getFilename(call->getExprLoc()));
     if (std::find(refactoringFiles.begin(), refactoringFiles.end(), filename) == refactoringFiles.end()) {
         throw std::runtime_error("Found match in file '" + filename + "' which is not one of the files to be refactored!");
-        return;
     }
 
     const Expr* sender = call->getArg(0);
@@ -263,14 +262,14 @@ std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::Match
         }
     }
     auto searchLambda = [](const CXXRecordDecl* cls, void *userData) {
-        auto searchInfo = static_cast<SearchInfo*>(userData);
+        auto info = static_cast<SearchInfo*>(userData);
         for (auto it = cls->method_begin(); it != cls->method_end(); ++it) {
             if (!it->getIdentifier()) {
                 //is not a normal C++ method, maybe constructor or destructor
                 continue;
             }
-            if (it->getName() == searchInfo->methodName) {
-                searchInfo->results.push_back(*it);
+            if (it->getName() == info->methodName) {
+                info->results.push_back(*it);
 //                llvm::outs() << "Found " << searchInfo->results.size() << ". defintion: "
 //                        << cls->getName() << "::" << it->getName() << "\n";
             }

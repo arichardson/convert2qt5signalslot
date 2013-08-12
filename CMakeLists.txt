@@ -9,7 +9,7 @@ find_package(Clang REQUIRED)
 link_directories( ${LLVM_LIB_DIR} )
 include_directories(${CLANG_INCLUDE_DIRS})
 
-add_definitions("-std=c++11 -fno-rtti")
+add_definitions("-std=c++11 -fno-rtti -Wall -pedantic -Weverything -Wno-global-constructors -Wno-c++98-compat -Wno-exit-time-destructors")
 
 add_executable(convert2qt5signalslot Qt5SignalSlotSyntaxConverter.cpp)
 target_link_libraries(convert2qt5signalslot ${CLANG_LIBS} ${LLVM_LIBS_CORE} pthread)
