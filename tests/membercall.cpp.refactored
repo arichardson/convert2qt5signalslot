@@ -1,0 +1,19 @@
+#include <QtCore/QObject>
+
+class Test : public QObject {
+    Q_OBJECT
+public:
+    Test();
+private:
+	QObject* someObj();
+    QObject* q;
+};
+
+Test::Test() {
+	//here receiver is "this"
+    connect(this, &Test::objectNameChanged, this, &Test::deleteLater);
+    //ensure that the receiver is correctly set ("q")
+    q->connect(this, &Test::objectNameChanged, q, &QObject::deleteLater);
+    //no try with a function call
+    someObj()->connect(this, &Test::objectNameChanged, someObj(), &QObject::deleteLater);
+}
