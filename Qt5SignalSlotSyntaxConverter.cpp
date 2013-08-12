@@ -90,13 +90,12 @@ static StringRef signalSlotName(const StringLiteral* literal) {
 static StringRef signalSlotParameters(const StringLiteral* literal) {
     StringRef bytes = literal->getString();
     auto openingPos = bytes.find_first_of('(');
-    auto nullPos = bytes.rfind('\0');
-    if (openingPos == StringRef::npos || nullPos == StringRef::npos) {
-        throw std::runtime_error(("invalid format of signal slot string: " + bytes).str());
+    if (openingPos == StringRef::npos) {
+        throw std::runtime_error(("invalid format of signal slot parameters: " + bytes).str());
     }
-    auto closingPos = bytes.rfind(')', nullPos);
+    auto closingPos = bytes.find(')', openingPos);
     if (closingPos == StringRef::npos || closingPos <= openingPos) {
-        throw std::runtime_error(("invalid format of signal slot string: " + bytes).str());
+        throw std::runtime_error(("invalid format of signal slot parameters: " + bytes).str());
     }
     StringRef result = bytes.slice(openingPos + 1, closingPos);
     //((llvm::outs() << "Parameters from '").write_escaped(bytes) << "' are '").write_escaped(result) << "'\n";
@@ -144,8 +143,17 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     try {
         convert(result);
     }
+    catch (const SkipMatchException& e) {
+        skippedMatches++;
+        (llvm::errs().changeColor(llvm::raw_ostream::BLUE, true) << "Not converting current match. Reason: ")
+                .write_escaped(e.what()) << "\n\n";
+        llvm::errs().resetColor();
+    }
     catch (const std::exception& e) {
-        (llvm::errs() << "Failed to convert match: ").write_escaped(e.what()) << "\n";
+        failedMatches++;
+        (llvm::errs().changeColor(llvm::raw_ostream::RED, true) << "Failed to convert match: ")
+                .write_escaped(e.what()) << "\n\n";
+        llvm::errs().resetColor();
     }
     llvm::outs().flush();
     llvm::errs().flush();
