@@ -16,6 +16,7 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Signals.h>
 
 #include <stdexcept>
@@ -26,8 +27,9 @@ using namespace clang::tooling;
 using namespace clang::ast_matchers;
 
 namespace {
-
-
+static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
+static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clCategory), llvm::cl::ZeroOrMore,
+        llvm::cl::desc("signals/slots with this prefix will be skipped (useful for Q_PRIVATE_SLOTS). May be passed multiple times.") );
 std::vector<std::string> refactoringFiles;
 
 class ConnectCallMatcher : public MatchFinder::MatchCallback {
@@ -132,6 +134,12 @@ static void printReplacementRange(SourceRange range, SourceManager* manager, con
     llvm::outs() << " with '" << replacement << "'\n";
 }
 
+
+class SkipMatchException : public std::runtime_error {
+public:
+    SkipMatchException(const std::string& msg) : std::runtime_error(msg) {}
+};
+
 void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     try {
         convert(result);
@@ -225,6 +233,13 @@ std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::Match
         StringRef parameters;
     } searchInfo;
     searchInfo.methodName = signalSlotName(connectStr);
+    for (const auto& prefix : skipPrefixes) {
+        if (searchInfo.methodName.startswith(prefix)) {
+            //e.g. in KDE all private slots start with _k_
+            //I don't know how to convert Q_PRIVATE_SLOTS, so allow an easy way of skipping them
+            throw SkipMatchException(("'" + searchInfo.methodName + "' starts with '" + prefix + "'").str());
+        }
+    }
     auto searchLambda = [](const CXXRecordDecl* cls, void *userData) {
         auto searchInfo = static_cast<SearchInfo*>(userData);
         for (auto it = cls->method_begin(); it != cls->method_end(); ++it) {
