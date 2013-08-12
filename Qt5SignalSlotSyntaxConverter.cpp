@@ -55,12 +55,10 @@ private:
 };
 
 
-LangOptions options = []() { LangOptions l; l.CPlusPlus11 = true; return l; }();
-
 //http://stackoverflow.com/questions/11083066/getting-the-source-behind-clangs-ast
 static std::string expr2str(const Expr *d, SourceManager* manager, ASTContext* ctx) {
     clang::SourceLocation b(d->getLocStart()), _e(d->getLocEnd());
-    clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *manager, options));
+    clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *manager, ctx->getLangOpts()));
     const char* start = manager->getCharacterData(b);
     const char* end = manager->getCharacterData(e);
     if (!start || !end || end < start) {
@@ -112,7 +110,7 @@ static std::string getRealPath(const std::string& path) {
 /** expr->getLocStart() + expr->getLocEnd() don't return the proper location if the expression is a macro expansion
  * this function fixes this
  */
-static SourceRange getMacroExpansionRange(const Expr* expr,SourceManager* manager, bool* validMacroExpansion) {
+static SourceRange getMacroExpansionRange(const Expr* expr,SourceManager* manager, const LangOptions& options, bool* validMacroExpansion) {
     SourceLocation beginLoc;
     const bool isMacroStart = Lexer::isAtStartOfMacroExpansion(expr->getLocStart(), *manager, options, &beginLoc);
     if (!isMacroStart)
@@ -197,9 +195,9 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
     bool signalRangeOk;
-    SourceRange signalRange = getMacroExpansionRange(signal, result.SourceManager, &signalRangeOk);
+    SourceRange signalRange = getMacroExpansionRange(signal, result.SourceManager, result.Context->getLangOpts(), &signalRangeOk);
     bool slotRangeOk;
-    SourceRange slotRange = getMacroExpansionRange(slot, result.SourceManager, &slotRangeOk);
+    SourceRange slotRange = getMacroExpansionRange(slot, result.SourceManager, result.Context->getLangOpts(), &slotRangeOk);
     if (!signalRangeOk || !slotRangeOk) {
         throw std::runtime_error("connect() call must use SIGNAL/SLOT macro so that conversion can work!\n");
     }
