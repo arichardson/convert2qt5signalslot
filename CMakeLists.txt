@@ -32,3 +32,5 @@ add_test(NAME namespaces
 add_test(NAME membercall
 	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests"
 	COMMAND python ./convertertest.py "${CMAKE_BINARY_DIR}/convert2qt5signalslot" membercall.cpp)
+
+add_subdirectory(tests)
