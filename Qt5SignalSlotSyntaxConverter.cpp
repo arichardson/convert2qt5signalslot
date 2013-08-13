@@ -1,13 +1,8 @@
-
-#define __STDC_LIMIT_MACROS
-#define __STDC_CONSTANT_MACROS
+#include "Qt5SignalSlotSyntaxConverter.h"
 
 #include <clang/ASTMatchers/ASTMatchers.h>
-#include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/Basic/SourceManager.h>
 #include <clang/Frontend/FrontendActions.h>
-#include <clang/Tooling/CommonOptionsParser.h>
-#include <clang/Tooling/Refactoring.h>
 #include <clang/Tooling/Tooling.h>
 #include <clang/Analysis/CFG.h>
 #include <clang/AST/ASTContext.h>
@@ -17,7 +12,7 @@
 #include <llvm/Support/Format.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/CommandLine.h>
-#include <llvm/Support/Signals.h>
+#include <llvm/ADT/SmallString.h>
 
 #include <atomic>
 #include <stdexcept>
@@ -25,45 +20,10 @@
 
 using namespace clang;
 using namespace clang::tooling;
-using namespace clang::ast_matchers;
 
-namespace {
 static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
 static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clCategory), llvm::cl::ZeroOrMore,
         llvm::cl::desc("signals/slots with this prefix will be skipped (useful for Q_PRIVATE_SLOTS). May be passed multiple times.") );
-static std::vector<std::string> refactoringFiles;
-
-class ConnectCallMatcher : public MatchFinder::MatchCallback {
-public:
-    ConnectCallMatcher(Replacements* reps) : foundMatches(0), convertedMatches(0),
-            skippedMatches(0), failedMatches(0), replacements(reps) {}
-    virtual void run(const MatchFinder::MatchResult& result) override;
-    void convert(const MatchFinder::MatchResult& result);
-    /**
-     * @return The new signal/slot expression for the connect call
-     */
-    static std::string calculateReplacementStr(const MatchFinder::MatchResult& result, const CXXRecordDecl* type,
-            const StringLiteral* connectStr, const std::string& prepend);
-    void printStats() const;
-private:
-    std::atomic_int foundMatches;
-    std::atomic_int convertedMatches;
-    std::atomic_int skippedMatches;
-    std::atomic_int failedMatches;
-    Replacements* replacements;
-};
-
-
-class ConnectConverter {
-public:
-    ConnectConverter(Replacements* reps) : matcher(reps) {}
-    void setupMatchers(MatchFinder* matchFinder);
-    void printStats() const {
-        matcher.printStats();
-    }
-private:
-    ConnectCallMatcher matcher;
-};
 
 //http://stackoverflow.com/questions/11083066/getting-the-source-behind-clangs-ast
 static std::string expr2str(const Expr *d, SourceManager* manager, ASTContext* ctx) {
@@ -110,12 +70,6 @@ static StringRef signalSlotParameters(const StringLiteral* literal) {
     return result;
 }
 
-static std::string getRealPath(const std::string& path) {
-    char buf[PATH_MAX];
-    realpath(path.c_str(), buf);
-    return std::string(buf);
-}
-
 /** expr->getLocStart() + expr->getLocEnd() don't return the proper location if the expression is a macro expansion
  * this function fixes this
  */
@@ -145,7 +99,11 @@ static void printReplacementRange(SourceRange range, SourceManager* manager, con
 class SkipMatchException : public std::runtime_error {
 public:
     SkipMatchException(const std::string& msg) : std::runtime_error(msg) {}
+    virtual ~SkipMatchException();
 };
+
+SkipMatchException::~SkipMatchException() {}
+
 
 void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     try {
@@ -237,8 +195,8 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     const CXXRecordDecl* receiverTypeDecl = receiver->getBestDynamicClassType();
 
 
-    const std::string signalReplacement = calculateReplacementStr(result, senderTypeDecl, signalLiteral, std::string());
-    std::string slotReplacement = calculateReplacementStr(result, receiverTypeDecl, slotLiteral, receiverString);
+    const std::string signalReplacement = calculateReplacementStr(senderTypeDecl, signalLiteral, std::string());
+    std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, slotLiteral, receiverString);
     printReplacementRange(signalRange, result.SourceManager, signalReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
     printReplacementRange(slotRange, result.SourceManager, slotReplacement);
@@ -246,7 +204,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     convertedMatches++;
 }
 
-std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::MatchResult& matchResult, const CXXRecordDecl* type,
+std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* type,
         const StringLiteral* connectStr, const std::string& prepend) {
     struct SearchInfo {
         std::vector<const CXXMethodDecl*> results;
@@ -307,6 +265,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const MatchFinder::Match
 
 void ConnectConverter::setupMatchers(MatchFinder* match_finder) {
     //both connect overloads
+    using namespace clang::ast_matchers;
     match_finder->addMatcher(id("callExpr", memberCallExpr(
             hasDeclaration(id("decl",
                     methodDecl(
@@ -344,27 +303,4 @@ void ConnectCallMatcher::printStats() const {
     }
     llvm::outs().resetColor() << ".\n";
     llvm::outs().flush();
-}
-
-
-}  // namespace
-
-static llvm::cl::extrahelp common_help(CommonOptionsParser::HelpMessage);
-
-int main(int argc, const char* argv[]) {
-  CommonOptionsParser options(argc, argv);
-  llvm::sys::PrintStackTraceOnErrorSignal();
-  tooling::RefactoringTool tool(options.getCompilations(), options.getSourcePathList());
-
-  for (const std::string& s : options.getSourcePathList()) {
-      refactoringFiles.push_back(getRealPath(s));
-  }
-
-  MatchFinder matchFinder;
-  ConnectConverter converter(&tool.getReplacements());
-  converter.setupMatchers(&matchFinder);
-  int retVal = tool.runAndSave(newFrontendActionFactory(&matchFinder));
-  llvm::outs() << "\n";
-  converter.printStats();
-  return retVal;
 }

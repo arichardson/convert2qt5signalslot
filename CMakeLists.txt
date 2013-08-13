@@ -11,7 +11,7 @@ include_directories(${CLANG_INCLUDE_DIRS})
 
 add_definitions("-std=c++11 -fno-rtti -Wall -pedantic -Weverything -Wno-global-constructors -Wno-c++98-compat -Wno-exit-time-destructors")
 
-add_executable(convert2qt5signalslot Qt5SignalSlotSyntaxConverter.cpp)
+add_executable(convert2qt5signalslot Qt5SignalSlotSyntaxConverter.cpp main.cpp)
 target_link_libraries(convert2qt5signalslot ${CLANG_LIBS} ${LLVM_LIBS_CORE} pthread)
 install(TARGETS convert2qt5signalslot RUNTIME DESTINATION bin)
 
