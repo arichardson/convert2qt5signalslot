@@ -60,12 +60,12 @@ int testMain(std::string input, std::string expected) {
   auto lineCount = std::min(resultLines.size(), expectedLines.size());
   for (size_t i = 0; i < lineCount; ++i) {
       if (expectedLines[i] != resultLines[i]) {
-          ((((llvm::errs() << i << "expected: ").changeColor(llvm::raw_ostream::GREEN, true) << expectedLines[i]).resetColor() << "\n"
-                           << i << "result  : ").changeColor(llvm::raw_ostream::RED, true) << resultLines[i]).resetColor() << "\n";
+          ((((llvm::errs() << i << " expected:").changeColor(llvm::raw_ostream::GREEN, true) << expectedLines[i]).resetColor() << "\n"
+                           << i << " result  :").changeColor(llvm::raw_ostream::RED, true) << resultLines[i]).resetColor() << "\n";
           success = false;
       }
       else {
-          llvm::errs() << i << " okay   :" << expectedLines[i] << "\n";
+          llvm::errs() << i << "  okay   :" << expectedLines[i] << "\n";
       }
   }
   if (resultLines.size() > lineCount) {
