@@ -5,7 +5,7 @@
 #include <clang/Rewrite/Frontend/FixItRewriter.h>
 #include <llvm/Support/Signals.h>
 
-#include <sstream>
+#include <boost/algorithm/string/split.hpp>
 
 using namespace clang::tooling;
 using llvm::errs;
@@ -13,16 +13,8 @@ using llvm::errs;
 #define FILE_NAME "/this/path/does/not/exist/test-input.cpp"
 
 typedef std::vector<std::string> StringList;
+static const auto isNewline = [](char c) { return c == '\n'; };
 
-inline StringList getLines(const std::string& input) {
-    StringList vec;
-    std::istringstream f(input);
-    std::string s;
-    while (std::getline(f, s)) {
-        vec.push_back(std::move(s));
-    }
-    return std::move(vec);
-}
 
 int testMain(std::string input, std::string expected) {
   llvm::sys::PrintStackTraceOnErrorSignal();
@@ -53,8 +45,10 @@ int testMain(std::string input, std::string expected) {
       input.replace(size_t(offsetAdjust + ssize_t(rep.getOffset())), rep.getLength(), rep.getReplacementText().str());
       offsetAdjust += ssize_t(rep.getReplacementText().size()) - ssize_t(rep.getLength());
   }
-  StringList expectedLines = getLines(expected);
-  StringList resultLines = getLines(input);
+  StringList expectedLines;
+  boost::split(expectedLines, expected, isNewline);
+  StringList resultLines;
+  boost::split(resultLines, input, isNewline);
   llvm::outs() << "Comparing result with expected result...\n";
   llvm::outs().flush();
   auto lineCount = std::min(resultLines.size(), expectedLines.size());

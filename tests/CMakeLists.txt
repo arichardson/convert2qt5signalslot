@@ -1,3 +1,7 @@
+find_package(Boost)
+
+include_directories(${Boost_INCLUDE_DIR})
+
 add_library(testCommonObjs OBJECT testCommon.cpp) #only compile once, not for every test
 
 macro(converter_unit_test _name)
