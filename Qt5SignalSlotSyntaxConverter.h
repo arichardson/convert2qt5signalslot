@@ -44,6 +44,10 @@ private:
 
 static inline std::string getRealPath(const std::string& path) {
     char buf[PATH_MAX];
-    realpath(path.c_str(), buf);
-    return std::string(buf);
+    const char* ret = realpath(path.c_str(), buf);
+    if (!ret) {
+        //resolving failed, could be a virtual path
+        return path;
+    }
+    return std::string(ret);
 }
