@@ -9,28 +9,24 @@ find_package(Clang REQUIRED)
 link_directories( ${LLVM_LIB_DIR} )
 include_directories(${CLANG_INCLUDE_DIRS})
 
-add_definitions("-std=c++11 -fno-rtti -Wall -pedantic -Weverything -Wno-global-constructors -Wno-c++98-compat -Wno-exit-time-destructors")
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  message(STATUS "Compiling using clang++")
+  add_definitions("-std=c++11 -fno-rtti -Wall -pedantic -Weverything -Wno-global-constructors -Wno-c++98-compat -Wno-exit-time-destructors")
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  message(STATUS "Compiling using g++")
+  add_definitions("-std=c++11 -fno-rtti -Wall -pedantic")
+else()
+  message(FATAL_ERROR "Using unknown compiler, don't know how to activate C++11")
+endif()
 
-add_executable(convert2qt5signalslot Qt5SignalSlotSyntaxConverter.cpp main.cpp)
+add_library(converterObjs OBJECT Qt5SignalSlotSyntaxConverter.cpp)
+
+add_executable(convert2qt5signalslot $<TARGET_OBJECTS:converterObjs> main.cpp)
 target_link_libraries(convert2qt5signalslot ${CLANG_LIBS} ${LLVM_LIBS_CORE} pthread)
 install(TARGETS convert2qt5signalslot RUNTIME DESTINATION bin)
 
-enable_testing()
-
-add_test(NAME simple
-	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests"
-	COMMAND python ./convertertest.py "${CMAKE_BINARY_DIR}/convert2qt5signalslot" simple.cpp)
-
-add_test(NAME overloaded
-	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests"
-	COMMAND python ./convertertest.py "${CMAKE_BINARY_DIR}/convert2qt5signalslot" overloaded.cpp)
-
-add_test(NAME namespaces
-	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests"
-	COMMAND python ./convertertest.py "${CMAKE_BINARY_DIR}/convert2qt5signalslot" namespaces.cpp)
-
-add_test(NAME membercall
-	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests"
-	COMMAND python ./convertertest.py "${CMAKE_BINARY_DIR}/convert2qt5signalslot" membercall.cpp)
-
-add_subdirectory(tests)
+option(BUILD_TESTING "Whether to build the unit tests" OFF)
+if(BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(tests)
+endif(BUILD_TESTING)
