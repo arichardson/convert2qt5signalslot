@@ -1,6 +1,6 @@
 #include "testCommon.h"
 
-const char* input = R"delim(
+static const char* input = R"delim(
 #include <QObject>
 
 class Test : public QObject {
@@ -32,7 +32,7 @@ Test::Test() {
 }
 )delim";
 
-const char* output = R"delim(
+static const char* output = R"delim(
 #include <QObject>
 
 class Test : public QObject {
