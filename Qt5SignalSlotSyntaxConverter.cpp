@@ -99,10 +99,10 @@ static void printReplacementRange(SourceRange range, SourceManager* manager, con
 class SkipMatchException : public std::runtime_error {
 public:
     SkipMatchException(const std::string& msg) : std::runtime_error(msg) {}
-    virtual ~SkipMatchException();
+    virtual ~SkipMatchException() noexcept;
 };
 
-SkipMatchException::~SkipMatchException() {}
+SkipMatchException::~SkipMatchException() noexcept {}
 
 
 void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
@@ -149,7 +149,6 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     const Expr* signal;
     const Expr* slot;
     const Expr* receiver;
-    const Expr* connectionTypeExpr;
     std::string receiverString;
 
     if (numArgs == 5) {
@@ -158,7 +157,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
         receiver = call->getArg(2);
         //receiverString = expr2str(receiver, result.SourceManager, result.Context);
         slot = call->getArg(3);
-        connectionTypeExpr = call->getArg(4);
+        //connectionTypeExpr = call->getArg(4);
 
     }
     else if (numArgs == 4) {
@@ -167,7 +166,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
         assert(isa<CXXMemberCallExpr>(call));
         const CXXMemberCallExpr* cxxCall = cast<CXXMemberCallExpr>(call);
         receiver = cxxCall->getImplicitObjectArgument(); //get this pointer
-        connectionTypeExpr = call->getArg(3);
+        //connectionTypeExpr = call->getArg(3);
         if (receiver->isImplicitCXXThis()) {
             receiverString = "this";
         }
