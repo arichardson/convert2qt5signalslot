@@ -73,13 +73,13 @@ static StringRef signalSlotParameters(const StringLiteral* literal) {
 /** expr->getLocStart() + expr->getLocEnd() don't return the proper location if the expression is a macro expansion
  * this function fixes this
  */
-static SourceRange getMacroExpansionRange(const Expr* expr,SourceManager* manager, const LangOptions& options, bool* validMacroExpansion) {
+static SourceRange getMacroExpansionRange(const Expr* expr, ASTContext* context, bool* validMacroExpansion) {
     SourceLocation beginLoc;
-    const bool isMacroStart = Lexer::isAtStartOfMacroExpansion(expr->getLocStart(), *manager, options, &beginLoc);
+    const bool isMacroStart = Lexer::isAtStartOfMacroExpansion(expr->getLocStart(), context->getSourceManager(), context->getLangOpts(), &beginLoc);
     if (!isMacroStart)
         beginLoc = expr->getLocStart();
     SourceLocation endLoc;
-    const bool isMacroEnd = Lexer::isAtEndOfMacroExpansion(expr->getLocEnd(), *manager, options, &endLoc);
+    const bool isMacroEnd = Lexer::isAtEndOfMacroExpansion(expr->getLocEnd(), context->getSourceManager(), context->getLangOpts(), &endLoc);
     if (!isMacroEnd)
         endLoc = expr->getLocEnd();
     if (validMacroExpansion)
@@ -99,11 +99,8 @@ static void printReplacementRange(SourceRange range, SourceManager* manager, con
 class SkipMatchException : public std::runtime_error {
 public:
     SkipMatchException(const std::string& msg) : std::runtime_error(msg) {}
-    virtual ~SkipMatchException() noexcept;
+    virtual ~SkipMatchException() noexcept {};
 };
-
-SkipMatchException::~SkipMatchException() noexcept {}
-
 
 void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     try {
@@ -180,9 +177,9 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
     bool signalRangeOk;
-    SourceRange signalRange = getMacroExpansionRange(signal, result.SourceManager, result.Context->getLangOpts(), &signalRangeOk);
+    SourceRange signalRange = getMacroExpansionRange(signal, result.Context, &signalRangeOk);
     bool slotRangeOk;
-    SourceRange slotRange = getMacroExpansionRange(slot, result.SourceManager, result.Context->getLangOpts(), &slotRangeOk);
+    SourceRange slotRange = getMacroExpansionRange(slot, result.Context, &slotRangeOk);
     if (!signalRangeOk || !slotRangeOk) {
         throw std::runtime_error("connect() call must use SIGNAL/SLOT macro so that conversion can work!\n");
     }
@@ -195,7 +192,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 
 
     const std::string signalReplacement = calculateReplacementStr(senderTypeDecl, signalLiteral, std::string());
-    std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, slotLiteral, receiverString);
+    const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, slotLiteral, receiverString);
     printReplacementRange(signalRange, result.SourceManager, signalReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
     printReplacementRange(slotRange, result.SourceManager, slotReplacement);
@@ -262,10 +259,10 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
 
 }
 
-void ConnectConverter::setupMatchers(MatchFinder* match_finder) {
+void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
     //both connect overloads
     using namespace clang::ast_matchers;
-    match_finder->addMatcher(id("callExpr", memberCallExpr(
+    matchFinder->addMatcher(id("callExpr", memberCallExpr(
             hasDeclaration(id("decl",
                     methodDecl(
                             hasName("::QObject::connect"),
@@ -277,7 +274,7 @@ void ConnectConverter::setupMatchers(MatchFinder* match_finder) {
 
     )), &matcher);
 
-    match_finder->addMatcher(id("callExpr", callExpr(
+    matchFinder->addMatcher(id("callExpr", callExpr(
 
             hasDeclaration(id("decl",
                     methodDecl(

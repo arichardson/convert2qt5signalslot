@@ -27,7 +27,7 @@ int testMain(std::string input, std::string expected) {
   auto factory = newFrontendActionFactory(&matchFinder);
   auto action = factory->create();
   //FIXME these are system dependent, fix it
-  StringList args{ "-I/usr/lib64/clang/3.3/include", "-I/usr/include/qt5/QtCore", "-I/usr/include/qt5/", "-fPIE" };
+  StringList args{ "-I/usr/lib64/clang/3.4/include", "-I/usr/include/qt5/QtCore", "-I/usr/include/qt5/", "-fPIE" };
   bool success = clang::tooling::runToolOnCodeWithArgs(action, input, args, FILE_NAME);
   if (!success) {
       errs() << "Failed to run tool!\n";
@@ -71,7 +71,7 @@ int testMain(std::string input, std::string expected) {
   }
   if (expectedLines.size() > lineCount) {
       success = false;
-      llvm::errs() << "Additional lines in result:\n";
+      llvm::errs() << "Additional lines in expected:\n";
       for (size_t i = lineCount; i < expectedLines.size(); ++i) {
           llvm::errs() << i << " = '" << expectedLines[i] << "'\n";
       }
