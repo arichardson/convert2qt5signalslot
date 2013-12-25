@@ -24,10 +24,10 @@ int testMain(std::string input, std::string expected) {
   Replacements replacements;
   ConnectConverter converter(&replacements, refactoringFiles);
   converter.setupMatchers(&matchFinder);
-  auto factory = newFrontendActionFactory(&matchFinder);
+  auto factory = newFrontendActionFactory(&matchFinder, converter.sourceCallback());
   auto action = factory->create();
   //FIXME these are system dependent, fix it
-  StringList args{ "-I/usr/lib64/clang/3.4/include", "-I/usr/include/qt5/QtCore", "-I/usr/include/qt5/", "-fPIE" };
+  StringList args{ "-std=c++11", "-I/usr/lib64/clang/3.4/include", "-I/usr/include/qt5/QtCore", "-I/usr/include/qt5/", "-fPIE" };
   bool success = clang::tooling::runToolOnCodeWithArgs(action, input, args, FILE_NAME);
   if (!success) {
       errs() << "Failed to run tool!\n";

@@ -8,6 +8,9 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/Lex/Lexer.h>
 #include <clang/Lex/Preprocessor.h>
+#include <clang/Sema/Sema.h>
+#include <clang/Sema/Lookup.h>
+#include <clang/Frontend/CompilerInstance.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/Casting.h>
@@ -26,15 +29,15 @@ static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clC
         llvm::cl::desc("signals/slots with this prefix will be skipped (useful for Q_PRIVATE_SLOTS). May be passed multiple times.") );
 
 //http://stackoverflow.com/questions/11083066/getting-the-source-behind-clangs-ast
-static std::string expr2str(const Expr *d, SourceManager* manager, ASTContext* ctx) {
+static std::string expr2str(const Expr *d, ASTContext* ctx) {
     clang::SourceLocation b(d->getLocStart()), _e(d->getLocEnd());
-    clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *manager, ctx->getLangOpts()));
-    const char* start = manager->getCharacterData(b);
-    const char* end = manager->getCharacterData(e);
+    clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, ctx->getSourceManager(), ctx->getLangOpts()));
+    const char* start = ctx->getSourceManager().getCharacterData(b);
+    const char* end = ctx->getSourceManager().getCharacterData(e);
     if (!start || !end || end < start) {
         llvm::errs() << "could not get string for ";
         d->dumpPretty(*ctx);
-        llvm::errs() << " at " << b.printToString(*manager) << "\nAST:\n";
+        llvm::errs() << " at " << b.printToString(ctx->getSourceManager()) << "\nAST:\n";
         d->dumpColor();
         throw std::runtime_error("Failed to convert expression to string");
     }
@@ -99,11 +102,20 @@ static void printReplacementRange(SourceRange range, SourceManager* manager, con
 class SkipMatchException : public std::runtime_error {
 public:
     SkipMatchException(const std::string& msg) : std::runtime_error(msg) {}
-    virtual ~SkipMatchException() noexcept {};
+    SkipMatchException(const SkipMatchException&) = default;
+    virtual ~SkipMatchException() noexcept;
 };
+
+SkipMatchException::~SkipMatchException() noexcept {}
 
 void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     try {
+        assert(currentCompilerInstance);
+        //sema and pp must be null or unchanged
+        assert(!sema || sema == &currentCompilerInstance->getSema());
+        assert(!pp || pp == &currentCompilerInstance->getPreprocessor());
+        sema = &currentCompilerInstance->getSema();
+        pp = &currentCompilerInstance->getPreprocessor();
         convert(result);
     }
     catch (const SkipMatchException& e) {
@@ -133,7 +145,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 
     //call->dumpPretty(*result.Context); //show result after macro expansion
 
-    const std::string oldCall = expr2str(call, result.SourceManager, result.Context);
+    const std::string oldCall = expr2str(call, result.Context);
     llvm::outs() << oldCall << "\n";
 
     //check if we should touch this file
@@ -168,7 +180,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
             receiverString = "this";
         }
         else {
-            receiverString = expr2str(receiver, result.SourceManager, result.Context);
+            receiverString = expr2str(receiver, result.Context);
         }
     }
     else {
@@ -203,11 +215,13 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* type,
         const StringLiteral* connectStr, const std::string& prepend) {
     struct SearchInfo {
-        std::vector<const CXXMethodDecl*> results;
+        std::vector<CXXMethodDecl*> results;
         StringRef methodName;
         StringRef parameters;
+        clang::Sema* sema;
     } searchInfo;
     searchInfo.methodName = signalSlotName(connectStr);
+    searchInfo.sema = sema;
     for (const auto& prefix : skipPrefixes) {
         if (searchInfo.methodName.startswith(prefix)) {
             //e.g. in KDE all private slots start with _k_
@@ -223,7 +237,20 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
                 continue;
             }
             if (it->getName() == info->methodName) {
-                info->results.push_back(*it);
+                if (!info->results.empty()) {
+                    //make sure we don't add overrides
+                    FunctionDecl* d1 = info->results[0];
+                    const bool overload = info->sema->IsOverload(*it, d1, false);
+                    llvm::outs() << (*it)->getQualifiedNameAsString() << " is an overload of " << d1->getQualifiedNameAsString() << " = " << overload << "\n";
+                    if (overload) {
+                        llvm::outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
+                        info->results.push_back(*it);
+                    }
+                }
+                else {
+                    llvm::outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
+                    info->results.push_back(*it);
+                }
 //                llvm::outs() << "Found " << searchInfo->results.size() << ". defintion: "
 //                        << cls->getName() << "::" << it->getName() << "\n";
             }
@@ -232,10 +259,12 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     };
     searchLambda(type, &searchInfo); //search baseClass
     type->forallBases(searchLambda, &searchInfo, false); //now find in base classes
+    llvm::outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << searchInfo.methodName << ": " << searchInfo.results.size() << " results\n";
     SmallString<128> result;
     if (!prepend.empty()) {
         result = prepend + ", ";
     }
+    //TODO abort if none found
     const bool resolveOverloads = searchInfo.results.size() > 1; //TODO skip overriden methods!
     if (resolveOverloads) {
         llvm::outs() << type->getName() << "::" << searchInfo.methodName << " is a overloaded signal/slot. Found "
@@ -287,6 +316,18 @@ void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
              hasArgument(3, anyOf(hasDescendant(stringLiteral().bind("slotStr")), stringLiteral().bind("slotStr")))
 
     )), &matcher);
+}
+
+bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::StringRef Filename) {
+    llvm::outs() << "Handling file: " << Filename << "\n";
+    currentCompilerInstance = &CI;
+    return true;
+}
+
+void ConnectCallMatcher::handleEndSource() {
+    currentCompilerInstance = nullptr;
+    sema = nullptr;
+    pp = nullptr;
 }
 
 void ConnectCallMatcher::printStats() const {

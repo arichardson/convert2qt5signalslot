@@ -4,21 +4,28 @@
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/Tooling/Refactoring.h>
 
+namespace clang {
+    class Sema;
+}
+
 #include <atomic>
 
 using clang::ast_matchers::MatchFinder;
 
-class ConnectCallMatcher : public MatchFinder::MatchCallback {
+class ConnectCallMatcher : public MatchFinder::MatchCallback, public clang::tooling::SourceFileCallbacks {
 public:
     ConnectCallMatcher(clang::tooling::Replacements* reps, const std::vector<std::string>& files)
         : foundMatches(0), convertedMatches(0), skippedMatches(0), failedMatches(0), replacements(reps),
           refactoringFiles(files) {}
     virtual void run(const MatchFinder::MatchResult& result) override;
     void convert(const MatchFinder::MatchResult& result);
+    bool handleBeginSource(clang::CompilerInstance &CI, llvm::StringRef Filename) override;
+    void handleEndSource() override;
+
     /**
      * @return The new signal/slot expression for the connect call
      */
-    static std::string calculateReplacementStr(const clang::CXXRecordDecl* type,
+    std::string calculateReplacementStr(const clang::CXXRecordDecl* type,
             const clang::StringLiteral* connectStr, const std::string& prepend);
     void printStats() const;
 private:
@@ -26,7 +33,10 @@ private:
     std::atomic_int convertedMatches;
     std::atomic_int skippedMatches;
     std::atomic_int failedMatches;
-    clang::tooling::Replacements* replacements;
+    clang::CompilerInstance* currentCompilerInstance = nullptr;
+    clang::Sema* sema = nullptr;
+    clang::Preprocessor* pp = nullptr;
+    clang::tooling::Replacements* replacements = nullptr;
     const std::vector<std::string>& refactoringFiles;
 };
 
@@ -38,6 +48,7 @@ public:
     void printStats() const {
         matcher.printStats();
     }
+    clang::tooling::SourceFileCallbacks* sourceCallback() { return &matcher; }
 private:
     ConnectCallMatcher matcher;
 };
