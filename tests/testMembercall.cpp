@@ -17,7 +17,7 @@ Test::Test() {
     connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()));
     //ensure that the receiver is correctly set ("q")
     q->connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()));
-    //no try with a function call
+    //now try with a function call
     someObj()->connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()));
 }
 )delim";
@@ -39,7 +39,7 @@ Test::Test() {
     connect(this, &Test::objectNameChanged, this, &Test::deleteLater);
     //ensure that the receiver is correctly set ("q")
     q->connect(this, &Test::objectNameChanged, q, &QObject::deleteLater);
-    //no try with a function call
+    //now try with a function call
     someObj()->connect(this, &Test::objectNameChanged, someObj(), &QObject::deleteLater);
 }
 )delim";
