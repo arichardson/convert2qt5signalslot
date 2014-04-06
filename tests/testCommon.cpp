@@ -385,37 +385,41 @@ int testMain(std::string input, std::string expected) {
         input.replace(size_t(offsetAdjust + ssize_t(rep.getOffset())), rep.getLength(), rep.getReplacementText().str());
         offsetAdjust += ssize_t(rep.getReplacementText().size()) - ssize_t(rep.getLength());
     }
+    llvm::outs() << "Comparing result with expected result...\n";
+    llvm::outs().flush();
+    if (input == expected) {
+        llvm::outs() << "Success!\n";
+        return 0;
+    }
+    // something is wrong
     StringList expectedLines;
     boost::split(expectedLines, expected, isNewline);
     StringList resultLines;
     boost::split(resultLines, input, isNewline);
-    llvm::outs() << "Comparing result with expected result...\n";
-    llvm::outs().flush();
     auto lineCount = std::min(resultLines.size(), expectedLines.size());
     for (size_t i = 0; i < lineCount; ++i) {
         if (expectedLines[i] != resultLines[i]) {
             ((((llvm::errs() << i << " expected:").changeColor(llvm::raw_ostream::GREEN, true) << expectedLines[i]).resetColor()
                     << "\n" << i << " result  :").changeColor(llvm::raw_ostream::RED, true) << resultLines[i]).resetColor()
                     << "\n";
-            success = false;
         } else {
             //llvm::errs() << i << "  okay   :" << expectedLines[i] << "\n";
             // nothing
         }
     }
     if (resultLines.size() > lineCount) {
-        success = false;
         llvm::errs() << "Additional lines in result:\n";
         for (size_t i = lineCount; i < resultLines.size(); ++i) {
             llvm::errs() << i << " = '" << resultLines[i] << "'\n";
         }
     }
     if (expectedLines.size() > lineCount) {
-        success = false;
         llvm::errs() << "Additional lines in expected:\n";
         for (size_t i = lineCount; i < expectedLines.size(); ++i) {
             llvm::errs() << i << " = '" << expectedLines[i] << "'\n";
         }
     }
-    return success ? 0 : 1;
+    llvm::errs().flush();
+    llvm::outs().flush();
+    return 1;
 }
