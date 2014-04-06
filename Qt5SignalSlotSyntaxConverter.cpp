@@ -16,6 +16,7 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/ADT/SmallString.h>
+#include <llvm/ADT/SmallVector.h>
 
 #include <atomic>
 #include <stdexcept>
@@ -134,19 +135,39 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     llvm::errs().flush();
 }
 
+/** find the first StringLiteral child of @p stmt or null if not found */
+static const StringLiteral* findStringLiteralChild(const Stmt* stmt) {
+    for (auto it = stmt->child_begin(); it != stmt->child_end(); ++it) {
+        if (isa<StringLiteral>(*it)) {
+            return cast<StringLiteral>(*it);
+        }
+        const StringLiteral* ret = findStringLiteralChild(*it);
+        if (ret) {
+            return ret;
+        }
+    }
+    return nullptr;
+}
 
 void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     const CallExpr* call = result.Nodes.getNodeAs<CallExpr>("callExpr");
     const CXXMethodDecl* decl = result.Nodes.getNodeAs<CXXMethodDecl>("decl");
+    const FunctionDecl* containingFunction = result.Nodes.getNodeAs<FunctionDecl>("parent");
+    std::string functionName = containingFunction->getQualifiedNameAsString();
+    // check whether this is the inline implementation of the QObject::connect member function
+    if (functionName == "QObject::connect") {
+        return; // this can't be converted
+    }
     llvm::outs() << "\nMatch " << ++foundMatches << " found at ";
     call->getExprLoc().print(llvm::outs(), *result.SourceManager);
-    unsigned numArgs = decl->getNumParams();
-    llvm::outs() << ", num args: " << numArgs << ": ";
 
+    llvm::outs() << " inside function " << functionName;
+    unsigned numArgs = decl->getNumParams();
+    //llvm::outs() << ", num args: " << numArgs << ": ";
     //call->dumpPretty(*result.Context); //show result after macro expansion
 
     const std::string oldCall = expr2str(call, result.Context);
-    llvm::outs() << oldCall << "\n";
+    ((llvm::outs() << ": ").changeColor(llvm::raw_ostream::BLUE) << oldCall).resetColor() << "\n";
 
     //check if we should touch this file
     const std::string filename = getRealPath(result.SourceManager->getFilename(call->getExprLoc()));
@@ -154,12 +175,14 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
         throw std::runtime_error("Found match in file '" + filename + "' which is not one of the files to be refactored!");
     }
 
-    const Expr* sender = call->getArg(0);
+    const Expr* sender;
     const Expr* signal;
     const Expr* slot;
     const Expr* receiver;
+    std::string senderString;
     std::string receiverString;
 
+    sender = call->getArg(0);
     if (numArgs == 5) {
         //static QObject::connect
         signal = call->getArg(1);
@@ -192,18 +215,21 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     SourceRange signalRange = getMacroExpansionRange(signal, result.Context, &signalRangeOk);
     bool slotRangeOk;
     SourceRange slotRange = getMacroExpansionRange(slot, result.Context, &slotRangeOk);
-    if (!signalRangeOk || !slotRangeOk) {
-        throw std::runtime_error("connect() call must use SIGNAL/SLOT macro so that conversion can work!\n");
-    }
+    // doesn't have to be a macro expansion
+    //if (!signalRangeOk || !slotRangeOk) {
+    //    throw std::runtime_error("connect() call must use SIGNAL/SLOT macro so that conversion can work!\n");
+    //}
 
-    const StringLiteral* signalLiteral = result.Nodes.getNodeAs<clang::StringLiteral>("signalStr");
-    const StringLiteral* slotLiteral = result.Nodes.getNodeAs<clang::StringLiteral>("slotStr");
+    const StringLiteral* signalLiteral = findStringLiteralChild(signal);
+    const StringLiteral* slotLiteral = findStringLiteralChild(slot);
+    llvm::outs() << "signal literal: " << (signalLiteral ? signalLiteral->getBytes() : "nullptr") << "\n";
+    llvm::outs() << "slot literal: " << (slotLiteral ? slotLiteral->getBytes() : "nullptr") << "\n";
+
 
     const CXXRecordDecl* senderTypeDecl = sender->getBestDynamicClassType();
     const CXXRecordDecl* receiverTypeDecl = receiver->getBestDynamicClassType();
 
-
-    const std::string signalReplacement = calculateReplacementStr(senderTypeDecl, signalLiteral, std::string());
+    const std::string signalReplacement = calculateReplacementStr(senderTypeDecl, signalLiteral, senderString);
     const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, slotLiteral, receiverString);
     printReplacementRange(signalRange, result.SourceManager, signalReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
@@ -291,31 +317,28 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
 void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
     //both connect overloads
     using namespace clang::ast_matchers;
-    matchFinder->addMatcher(id("callExpr", memberCallExpr(
-            hasDeclaration(id("decl",
-                    methodDecl(
-                            hasName("::QObject::connect"),
-                            parameterCountIs(4)
-                    )
-             )),
-             hasArgument(1, anyOf(hasDescendant(stringLiteral().bind("signalStr")), stringLiteral().bind("signalStr"))),
-             hasArgument(2, anyOf(hasDescendant(stringLiteral().bind("slotStr")), stringLiteral().bind("slotStr")))
 
-    )), &matcher);
-
-    matchFinder->addMatcher(id("callExpr", callExpr(
-
-            hasDeclaration(id("decl",
-                    methodDecl(
-                            hasName("::QObject::connect"),
-                            parameterCountIs(5)
-                    )
-             )),
-
-             hasArgument(1, anyOf(hasDescendant(stringLiteral().bind("signalStr")), stringLiteral().bind("signalStr"))),
-             hasArgument(3, anyOf(hasDescendant(stringLiteral().bind("slotStr")), stringLiteral().bind("slotStr")))
-
-    )), &matcher);
+    // !!!! when using asString it is very important to write "const char *" and not "const char*", since that doesn't work
+    // handle both connect overloads with SIGNAL() and SLOT()
+    matchFinder->addMatcher(
+        id("callExpr", callExpr(
+            hasDeclaration(id("decl", methodDecl(
+                hasName("::QObject::connect"),
+                    anyOf(
+                        // QMetaObject::Connection connect(const QObject* sender, const char* signal, const char* method, Qt::ConnectionType type = Qt::AutoConnection) const
+                        allOf(parameterCountIs(4),
+                                hasParameter(1, hasType(asString("const char *"))),
+                                hasParameter(2, hasType(asString("const char *")))
+                            ),
+                        // static QMetaObject::Connection connect(const QObject* sender, const char* signal, const QObject* receiver, const char* method, Qt::ConnectionType type = Qt::AutoConnection)
+                        allOf(parameterCountIs(5),
+                                hasParameter(1, hasType(asString("const char *"))),
+                                hasParameter(3, hasType(asString("const char *")))
+                            )
+                        )
+            ))),
+            hasAncestor(id("parent", methodDecl())) // we need this to determine whether we are inside QObject::connect
+        )), &matcher);
 }
 
 bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::StringRef Filename) {
