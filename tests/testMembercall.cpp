@@ -1,7 +1,7 @@
 #include "testCommon.h"
 
 static const char* input = R"delim(
-#include <QtCore/QObject>
+#include "fake_qobject.h"
 
 class Test : public QObject {
     Q_OBJECT
@@ -23,7 +23,7 @@ Test::Test() {
 )delim";
 
 static const char* output = R"delim(
-#include <QtCore/QObject>
+#include "fake_qobject.h"
 
 class Test : public QObject {
     Q_OBJECT

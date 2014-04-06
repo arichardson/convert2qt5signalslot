@@ -1,7 +1,7 @@
 #include "testCommon.h"
 
 static const char* commonStart = R"delim(
-#include <QtCore/QObject>
+#include "fake_qobject.h"
 
 class Base : public QObject {
     Q_OBJECT
