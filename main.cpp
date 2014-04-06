@@ -19,7 +19,7 @@ int main(int argc, const char* argv[]) {
   MatchFinder matchFinder;
   ConnectConverter converter(&tool.getReplacements(), refactoringFiles);
   converter.setupMatchers(&matchFinder);
-  int retVal = tool.runAndSave(newFrontendActionFactory(&matchFinder));
+  int retVal = tool.runAndSave(newFrontendActionFactory(&matchFinder, converter.sourceCallback()));
   llvm::outs() << "\n";
   converter.printStats();
   return retVal;
