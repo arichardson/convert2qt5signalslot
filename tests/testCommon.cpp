@@ -3,9 +3,10 @@
 #include "../Qt5SignalSlotSyntaxConverter.h"
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Rewrite/Frontend/FixItRewriter.h>
-#include <llvm/Support/Signals.h>
 #include <clang/Basic/FileSystemOptions.h>
 #include <clang/Basic/FileSystemStatCache.h>
+#include <clang/Frontend/FrontendActions.h>
+#include <llvm/Support/Signals.h>
 
 #include <boost/algorithm/string/split.hpp>
 
@@ -346,7 +347,7 @@ typedef std::vector<std::string> StringList;
 static const auto isNewline = [](char c) {return c == '\n';};
 
 static bool runTool(clang::FrontendAction *toolAction, const std::string code) {
-    std::vector<std::string> commands { "clang-tool", "-fsyntax-only", "-std=c++11", FILE_NAME };
+    std::vector<std::string> commands { "clang-tool", "-Wall", "-fsyntax-only", "-std=c++11", FILE_NAME };
     clang::FileSystemOptions opt;
     opt.WorkingDir = BASE_DIR;
     clang::FileManager* files = new clang::FileManager{ opt };
@@ -357,9 +358,23 @@ static bool runTool(clang::FrontendAction *toolAction, const std::string code) {
     return Invocation.run();
 }
 
+static bool codeCompiles(const std::string& code) {
+    auto action = new clang::SyntaxOnlyAction();
+    return runTool(action, code);
+}
+
 int testMain(std::string input, std::string expected) {
     llvm::sys::PrintStackTraceOnErrorSignal();
     StringList refactoringFiles { FILE_NAME };
+
+    if (!codeCompiles(input)) {
+        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: input code does not compile!\n").resetColor();
+        return 1;
+    }
+    if (!codeCompiles(expected)) {
+        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: output code does not compile!\n").resetColor();
+        return 1;
+    }
 
     MatchFinder matchFinder;
     Replacements replacements;
