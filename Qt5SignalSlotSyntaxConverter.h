@@ -34,7 +34,9 @@ public:
         const clang::FunctionDecl* containingFunction = nullptr;
         const clang::Expr* sender = nullptr;
         const clang::Expr* signal = nullptr;
+        const clang::StringLiteral* signalLiteral = nullptr;
         const clang::Expr* slot = nullptr;
+        const clang::StringLiteral* slotLiteral = nullptr;
         const clang::Expr* receiver = nullptr;
         std::string containingFunctionName;
         std::string senderString;
