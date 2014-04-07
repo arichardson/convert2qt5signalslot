@@ -358,7 +358,7 @@ void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
                             )
                         )
             ))),
-            hasAncestor(id("parent", methodDecl())) // we need this to determine whether we are inside QObject::connect
+            hasAncestor(id("parent", functionDecl())) // we need this to determine whether we are inside QObject::connect
         )), &matcher);
 }
 
