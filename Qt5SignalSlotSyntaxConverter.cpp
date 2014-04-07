@@ -39,9 +39,9 @@ static std::string expr2str(const Expr *d, ASTContext* ctx) {
     const char* start = ctx->getSourceManager().getCharacterData(b);
     const char* end = ctx->getSourceManager().getCharacterData(e);
     if (!start || !end || end < start) {
-        llvm::errs() << "could not get string for ";
+        errs() << "could not get string for ";
         d->dumpPretty(*ctx);
-        llvm::errs() << " at " << b.printToString(ctx->getSourceManager()) << "\nAST:\n";
+        errs() << " at " << b.printToString(ctx->getSourceManager()) << "\nAST:\n";
         d->dumpColor();
         throw std::runtime_error("Failed to convert expression to string");
     }
@@ -73,7 +73,7 @@ static StringRef signalSlotParameters(const StringLiteral* literal) {
         throw std::runtime_error(("invalid format of signal slot parameters: " + bytes).str());
     }
     StringRef result = bytes.slice(openingPos + 1, closingPos);
-    //((llvm::outs() << "Parameters from '").write_escaped(bytes) << "' are '").write_escaped(result) << "'\n";
+    //((outs() << "Parameters from '").write_escaped(bytes) << "' are '").write_escaped(result) << "'\n";
     return result;
 }
 
@@ -95,11 +95,11 @@ static SourceRange getMacroExpansionRange(const Expr* expr, ASTContext* context,
 }
 
 static void printReplacementRange(SourceRange range, SourceManager* manager, const std::string& replacement) {
-    llvm::outs() << "Replacing ";
-    range.getBegin().print(llvm::outs(), *manager);
-    llvm::outs() << " to ";
-    range.getEnd().print(llvm::outs(), *manager);
-    llvm::outs() << " with '" << replacement << "'\n";
+    outs() << "Replacing ";
+    range.getBegin().print(outs(), *manager);
+    outs() << " to ";
+    range.getEnd().print(outs(), *manager);
+    outs() << " with '" << replacement << "'\n";
 }
 
 
@@ -137,8 +137,8 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
 }
 
 void ConnectCallMatcher::matchFound(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
-    llvm::outs() << "\nMatch " << ++foundMatches << " found inside function " << p.containingFunctionName << ": ";
-    //llvm::outs() << ", num args: " << numArgs << ": ";
+    outs() << "\nMatch " << ++foundMatches << " found inside function " << p.containingFunctionName << ": ";
+    //outs() << ", num args: " << numArgs << ": ";
     //call->dumpPretty(*result.Context); //show result after macro expansion
     const std::string oldCall = expr2str(p.call, result.Context);
     colouredOut(llvm::raw_ostream::BLUE) << oldCall;
@@ -266,8 +266,8 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     SourceRange signalRange = getMacroExpansionRange(p.signal, result.Context);
     SourceRange slotRange = getMacroExpansionRange(p.slot, result.Context);
 
-    (llvm::outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
-    (llvm::outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
+    (outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
+    (outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
 
 
     const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
@@ -349,8 +349,8 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         return;
     }
     matchFound(p, result);
-    (llvm::outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
-    (llvm::outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
+    (outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
+    (outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
 
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
     if (p.signalLiteral) {
@@ -440,17 +440,17 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
                     //make sure we don't add overrides
                     FunctionDecl* d1 = info->results[0];
                     const bool overload = info->sema->IsOverload(*it, d1, false);
-                    llvm::outs() << (*it)->getQualifiedNameAsString() << " is an overload of " << d1->getQualifiedNameAsString() << " = " << overload << "\n";
+                    outs() << (*it)->getQualifiedNameAsString() << " is an overload of " << d1->getQualifiedNameAsString() << " = " << overload << "\n";
                     if (overload) {
-                        llvm::outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
+                        outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
                         info->results.push_back(*it);
                     }
                 }
                 else {
-                    llvm::outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
+                    outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
                     info->results.push_back(*it);
                 }
-//                llvm::outs() << "Found " << searchInfo->results.size() << ". defintion: "
+//                outs() << "Found " << searchInfo->results.size() << ". defintion: "
 //                        << cls->getName() << "::" << it->getName() << "\n";
             }
         }
@@ -458,7 +458,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     };
     searchLambda(type, &searchInfo); //search baseClass
     type->forallBases(searchLambda, &searchInfo, false); //now find in base classes
-    llvm::outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << searchInfo.methodName << ": " << searchInfo.results.size() << " results\n";
+    outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << searchInfo.methodName << ": " << searchInfo.results.size() << " results\n";
     SmallString<128> result;
     if (!prepend.empty()) {
         result = prepend + ", ";
@@ -466,7 +466,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     //TODO abort if none found
     const bool resolveOverloads = searchInfo.results.size() > 1; //TODO skip overriden methods!
     if (resolveOverloads) {
-        llvm::outs() << type->getName() << "::" << searchInfo.methodName << " is a overloaded signal/slot. Found "
+        outs() << type->getName() << "::" << searchInfo.methodName << " is a overloaded signal/slot. Found "
                 << searchInfo.results.size() << " overloads.\n";
         //overloaded signal/slot found -> we have to disambiguate
         searchInfo.parameters = signalSlotParameters(connectStr);
@@ -505,7 +505,7 @@ void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
 }
 
 bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::StringRef Filename) {
-    llvm::outs() << "Handling file: " << Filename << "\n";
+    outs() << "Handling file: " << Filename << "\n";
     currentCompilerInstance = &CI;
     return true;
 }
@@ -517,16 +517,16 @@ void ConnectCallMatcher::handleEndSource() {
 }
 
 void ConnectCallMatcher::printStats() const {
-    llvm::outs() << "Found " << foundMatches << " matches: ";
+    outs() << "Found " << foundMatches << " matches: ";
     colouredOut(llvm::raw_ostream::GREEN) << convertedMatches << " converted sucessfully";
     if (failedMatches > 0) {
-        llvm::outs() << ", ";
+        outs() << ", ";
         colouredOut(llvm::raw_ostream::RED) << failedMatches << " conversions failed";
     }
     if (skippedMatches > 0) {
-        llvm::outs() << ", ";
+        outs() << ", ";
         colouredOut(llvm::raw_ostream::YELLOW) << skippedMatches << " conversions skipped";
     }
-    llvm::outs() << ".\n";
-    llvm::outs().flush();
+    outs() << ".\n";
+    outs().flush();
 }
