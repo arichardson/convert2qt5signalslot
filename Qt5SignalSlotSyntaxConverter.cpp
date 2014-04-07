@@ -132,20 +132,6 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     llvm::errs().flush();
 }
 
-/** find the first StringLiteral child of @p stmt or null if not found */
-static const StringLiteral* findStringLiteralChild(const Stmt* stmt) {
-    for (auto it = stmt->child_begin(); it != stmt->child_end(); ++it) {
-        if (isa<StringLiteral>(*it)) {
-            return cast<StringLiteral>(*it);
-        }
-        const StringLiteral* ret = findStringLiteralChild(*it);
-        if (ret) {
-            return ret;
-        }
-    }
-    return nullptr;
-}
-
 void ConnectCallMatcher::matchFound(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
     llvm::outs() << "\nMatch " << ++foundMatches << " found at ";
     p.call->getExprLoc().print(llvm::outs(), *result.SourceManager);
@@ -232,8 +218,8 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     //    throw std::runtime_error("connect() call must use SIGNAL/SLOT macro so that conversion can work!\n");
     //}
 
-    const StringLiteral* signalLiteral = findStringLiteralChild(p.signal);
-    const StringLiteral* slotLiteral = findStringLiteralChild(p.slot);
+    const StringLiteral* signalLiteral = findfirstChildWithType<StringLiteral>(p.signal);
+    const StringLiteral* slotLiteral = findfirstChildWithType<StringLiteral>(p.slot);
     (llvm::outs() << "signal literal: ").write_escaped(signalLiteral ? signalLiteral->getBytes() : "nullptr") << "\n";
     (llvm::outs() << "slot literal: ").write_escaped(slotLiteral ? slotLiteral->getBytes() : "nullptr") << "\n";
 

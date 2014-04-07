@@ -3,6 +3,7 @@
 
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/StringRef.h>
+#include <clang/AST/Stmt.h>
 
 struct ColouredOStream {
     ColouredOStream(llvm::raw_ostream& stream, llvm::raw_ostream::Colors colour, bool bold)
@@ -32,5 +33,23 @@ static inline ColouredOStream colouredErr(llvm::raw_ostream::Colors colour, bool
     return ColouredOStream(llvm::errs(), colour, bold);
 }
 
+
+/** find the first child of @p stmt or with type @p T or null if none found */
+template<class T>
+static const T* findfirstChildWithType(const clang::Stmt* stmt) {
+    using namespace llvm;
+    for (auto it = stmt->child_begin(); it != stmt->child_end(); ++it) {
+        const T* ret = dyn_cast<T>(*it);
+        if (ret) {
+            return ret;
+        }
+        // try children now
+        ret = findfirstChildWithType<T>(*it);
+        if (ret) {
+            return ret;
+        }
+    }
+    return nullptr;
+}
 
 #endif /* LLVMUTILS_H_ */
