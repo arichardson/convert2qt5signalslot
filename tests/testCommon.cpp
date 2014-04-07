@@ -1,6 +1,7 @@
 #include "testCommon.h"
 
 #include "../Qt5SignalSlotSyntaxConverter.h"
+#include "../llvmutils.h"
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Rewrite/Frontend/FixItRewriter.h>
 #include <clang/Basic/FileSystemOptions.h>
@@ -368,11 +369,11 @@ int testMain(std::string input, std::string expected) {
     StringList refactoringFiles { FILE_NAME };
 
     if (!codeCompiles(input)) {
-        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: input code does not compile!\n").resetColor();
+        colouredOut(llvm::raw_ostream::RED) << "Failure: input code does not compile!\n";
         return 1;
     }
     if (!codeCompiles(expected)) {
-        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: output code does not compile!\n").resetColor();
+        colouredOut(llvm::raw_ostream::RED) << "Failure: output code does not compile!\n";
         return 1;
     }
 
@@ -392,21 +393,22 @@ int testMain(std::string input, std::string expected) {
     converter.printStats();
     outs().flush();
     if (converter.matchesFound() <= 0) {
-        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: No matches found!\n").resetColor();
+        colouredOut(llvm::raw_ostream::RED) << "Failure: No matches found!\n";
         return 1;
     }
     if (converter.matchesFailed() > 0) {
-        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: Failed to convert " <<  converter.matchesFailed() << "matches!\n").resetColor();
+        colouredOut(llvm::raw_ostream::RED) << "Failure: Failed to convert " <<  converter.matchesFailed() << "matches!\n";
         return 1;
     }
     if (converter.matchesSkipped() > 0) {
-        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: Skipped " <<  converter.matchesSkipped() << "matches!\n").resetColor();
+        colouredOut(llvm::raw_ostream::RED) << "Failure: Skipped " <<  converter.matchesSkipped() << "matches!\n";
         return 1;
     }
     if (converter.matchesConverted() != converter.matchesFound()) {
-        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: matches converted != matches found!\n").resetColor();
+        colouredOut(llvm::raw_ostream::RED) << "Failure: matches converted != matches found!\n";
         return 1;
     }
+
     ssize_t offsetAdjust = 0;
     for (const Replacement& rep : replacements) {
         if (rep.getFilePath() != FILE_NAME) {
@@ -418,7 +420,7 @@ int testMain(std::string input, std::string expected) {
     }
     outs() << "\nComparing result with expected result...";
     if (input == expected) {
-        (outs().changeColor(llvm::raw_ostream::GREEN, true) << " Success!\n").resetColor();
+        colouredOut(llvm::raw_ostream::GREEN) << " Success!\n";
         return 0;
     }
     outs() << "\n\n";
@@ -430,9 +432,10 @@ int testMain(std::string input, std::string expected) {
     auto lineCount = std::min(resultLines.size(), expectedLines.size());
     for (size_t i = 0; i < lineCount; ++i) {
         if (expectedLines[i] != resultLines[i]) {
-            ((((outs() << i << " expected:").changeColor(llvm::raw_ostream::GREEN, true) << expectedLines[i]).resetColor()
-                    << "\n" << i << " result  :").changeColor(llvm::raw_ostream::RED, true) << resultLines[i]).resetColor()
-                    << "\n";
+            outs() << i << " expected:";
+            colouredOut(llvm::raw_ostream::GREEN) << expectedLines[i] << "\n";
+            outs() << i << " result  :";
+            colouredOut(llvm::raw_ostream::RED) << resultLines[i] << "\n";
         } else {
             //outs() << i << "  okay   :" << expectedLines[i] << "\n";
             // nothing
@@ -441,15 +444,15 @@ int testMain(std::string input, std::string expected) {
     if (resultLines.size() > lineCount) {
         outs() << "Additional lines in result:\n";
         for (size_t i = lineCount; i < resultLines.size(); ++i) {
-            outs() << i << " = '" << resultLines[i] << "'\n";
+            colouredOut(llvm::raw_ostream::RED) << i << " = '" << resultLines[i] << "'\n";
         }
     }
     if (expectedLines.size() > lineCount) {
         outs() << "Additional lines in expected:\n";
         for (size_t i = lineCount; i < expectedLines.size(); ++i) {
-            outs() << i << " = '" << expectedLines[i] << "'\n";
+            colouredOut(llvm::raw_ostream::RED) << i << " = '" << expectedLines[i] << "'\n";
         }
     }
-    (outs().changeColor(llvm::raw_ostream::RED, true) << "\nFailed!\n").resetColor();
+    colouredOut(llvm::raw_ostream::RED) << "\nFailed!\n";
     return 1;
 }
