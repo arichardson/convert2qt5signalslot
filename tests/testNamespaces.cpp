@@ -139,6 +139,6 @@ void Test::globalUsingDirectives() {
 )delim";
 
 int main() {
-    return testMain(input, output);
+    return testMain(input, output, 10, 10);
 }
 

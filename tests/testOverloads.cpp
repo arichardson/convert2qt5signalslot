@@ -113,6 +113,6 @@ static const char* output = R"delim(
 
 int main() {
     std::string common(commonStart);
-    return testMain(common + input, common + output);
+    return testMain(common + input, common + output, 17, 17);
 }
 

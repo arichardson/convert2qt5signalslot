@@ -45,6 +45,6 @@ Test::Test() {
 )delim";
 
 int main() {
-    return testMain(input, output);
+    return testMain(input, output, 3, 3);
 }
 

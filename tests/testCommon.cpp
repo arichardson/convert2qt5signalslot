@@ -364,7 +364,7 @@ static bool codeCompiles(const std::string& code) {
     return runTool(action, code);
 }
 
-int testMain(std::string input, std::string expected) {
+int testMain(std::string input, std::string expected, int found, int converted) {
     llvm::sys::PrintStackTraceOnErrorSignal();
     StringList refactoringFiles { FILE_NAME };
 
@@ -404,8 +404,14 @@ int testMain(std::string input, std::string expected) {
         colouredOut(llvm::raw_ostream::RED) << "Failure: Skipped " <<  converter.matchesSkipped() << "matches!\n";
         return 1;
     }
-    if (converter.matchesConverted() != converter.matchesFound()) {
-        colouredOut(llvm::raw_ostream::RED) << "Failure: matches converted != matches found!\n";
+    if (found != converter.matchesFound()) {
+        colouredOut(llvm::raw_ostream::RED) << "Failure: Expected to find " << found
+                << " matches, but found " << converter.matchesFound() << "!\n";
+        return 1;
+    }
+    if (converted != converter.matchesFound()) {
+        colouredOut(llvm::raw_ostream::RED) << "Failure: Expected to convert " << found
+                << " matches, but converted " << converter.matchesConverted() << "!\n";
         return 1;
     }
 
