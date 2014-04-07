@@ -195,66 +195,9 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     p.containingFunction = result.Nodes.getNodeAs<FunctionDecl>("parent");
     p.containingFunctionName = p.containingFunction->getQualifiedNameAsString();
     if (p.decl->getName() == "connect") {
-        // check whether this is the inline implementation of the QObject::connect member function
-        // this would be caught as foundWithoutStringLiterals, but since this happens in every file skip it
-        if (p.containingFunctionName == "QObject::connect") {
-            return; // this can't be converted
-        }
-        // check that it is the correct overload with const char*
-        const unsigned numArgs = p.decl->getNumParams();
-        if (numArgs == 5) {
-            if (p.decl->getParamDecl(1)->getType() != constCharPtrType
-                    || p.decl->getParamDecl(3)->getType() != constCharPtrType) {
-                foundOtherOverload(p, result);
-                return;
-            }
-            //static QObject::connect
-            p.signal = p.call->getArg(1);
-            p.receiver = p.call->getArg(2);
-            p.slot = p.call->getArg(3);
-            //connectionTypeExpr = call->getArg(4);
-
-        }
-        else if (numArgs == 4) {
-            // must be a member call
-            if (!isa<CXXMemberCallExpr>(p.call) || p.decl->getParamDecl(1)->getType() != constCharPtrType
-                    || p.decl->getParamDecl(2)->getType() != constCharPtrType) {
-                foundOtherOverload(p, result);
-                return;
-            }
-            const CXXMemberCallExpr* cxxCall = cast<CXXMemberCallExpr>(p.call);
-            p.signal = p.call->getArg(1);
-            p.slot = p.call->getArg(2);
-            p.receiver = cxxCall->getImplicitObjectArgument(); //get this pointer
-            //connectionTypeExpr = call->getArg(3);
-            if (p.receiver->isImplicitCXXThis()) {
-                p.receiverString = "this";
-            }
-            else {
-                // this expands to foo() in foo()->connect(...)
-                p.receiverString = expr2str(p.receiver, result.Context);
-            }
-        }
-        else {
-            foundOtherOverload(p, result);
-            return;
-        }
-        p.signalLiteral = findfirstChildWithType<StringLiteral>(p.signal);
-        p.slotLiteral = findfirstChildWithType<StringLiteral>(p.slot);
-        if (!p.signalLiteral && !p.slotLiteral) {
-            foundWithoutStringLiterals(p, result);
-            return;
-        }
-
-        matchFound(p, result);
         return convertConnect(p, result);
     }
     else if (p.decl->getName() == "disconnect") {
-        // check whether this is the inline implementation of the QObject::disconnect member function
-        if (p.containingFunctionName == "QObject::disconnect") {
-            return; // this can't be converted
-        }
-        matchFound(p, result);
         return convertDisconnect(p, result);
     }
     else {
@@ -263,9 +206,60 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 }
 
 void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
-    p.sender = p.call->getArg(0);
+    // check whether this is the inline implementation of the QObject::connect member function
+    // this would be caught as foundWithoutStringLiterals, but since this happens in every file skip it
+    if (p.containingFunctionName == "QObject::connect") {
+        return; // this can't be converted
+    }
+    // check that it is the correct overload with const char*
+    const unsigned numArgs = p.decl->getNumParams();
+    if (numArgs == 5) {
+        // static method connect(QObject*, const char*, QObject*, const char*, Qt::ConnectionType)
+        if (p.decl->getParamDecl(1)->getType() != constCharPtrType
+                || p.decl->getParamDecl(3)->getType() != constCharPtrType) {
+            foundOtherOverload(p, result);
+            return;
+        }
+        p.sender = p.call->getArg(0);
+        p.signal = p.call->getArg(1);
+        p.receiver = p.call->getArg(2);
+        p.slot = p.call->getArg(3);
+        //connectionTypeExpr = call->getArg(4);
 
+    }
+    else if (numArgs == 4) {
+        // instance method connect(QObject*, const char*, const char*, Qt::ConnectionType)
+        if (!isa<CXXMemberCallExpr>(p.call) || p.decl->getParamDecl(1)->getType() != constCharPtrType
+                || p.decl->getParamDecl(2)->getType() != constCharPtrType) {
+            foundOtherOverload(p, result);
+            return;
+        }
+        const CXXMemberCallExpr* cxxCall = cast<CXXMemberCallExpr>(p.call);
+        p.sender = p.call->getArg(0);
+        p.signal = p.call->getArg(1);
+        p.slot = p.call->getArg(2);
+        p.receiver = cxxCall->getImplicitObjectArgument(); //get this pointer
+        //connectionTypeExpr = call->getArg(3);
+        if (p.receiver->isImplicitCXXThis()) {
+            p.receiverString = "this";
+        }
+        else {
+            // this expands to foo() in foo()->connect(...)
+            p.receiverString = expr2str(p.receiver, result.Context);
+        }
+    }
+    else {
+        foundOtherOverload(p, result);
+        return;
+    }
+    p.signalLiteral = findfirstChildWithType<StringLiteral>(p.signal);
+    p.slotLiteral = findfirstChildWithType<StringLiteral>(p.slot);
+    if (!p.signalLiteral && !p.slotLiteral) {
+        foundWithoutStringLiterals(p, result);
+        return;
+    }
 
+    matchFound(p, result);
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
     bool signalRangeOk;
     SourceRange signalRange = getMacroExpansionRange(p.signal, result.Context, &signalRangeOk);
@@ -291,6 +285,11 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
 void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
     //TODO: implement
     llvm::errs() << "converting disconnect not implemented!\n";
+    // check whether this is the inline implementation of the QObject::disconnect member function
+    if (p.containingFunctionName == "QObject::disconnect") {
+        return; // this can't be converted
+    }
+    matchFound(p, result);
 }
 
 
