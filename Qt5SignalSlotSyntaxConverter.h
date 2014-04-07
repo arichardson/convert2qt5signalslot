@@ -45,6 +45,7 @@ private:
     void convertDisconnect(Parameters& p, const MatchFinder::MatchResult& result);
     void matchFound(const Parameters& p, const MatchFinder::MatchResult& result);
 private:
+    friend class ConnectConverter;
     std::atomic_int foundMatches;
     std::atomic_int convertedMatches;
     std::atomic_int skippedMatches;
@@ -64,6 +65,10 @@ public:
     void printStats() const {
         matcher.printStats();
     }
+    inline int matchesFound() const { return matcher.foundMatches.load(); }
+    inline int matchesConverted() const { return matcher.convertedMatches.load(); }
+    inline int matchesSkipped() const { return matcher.skippedMatches.load(); }
+    inline int matchesFailed() const { return matcher.failedMatches.load(); }
     clang::tooling::SourceFileCallbacks* sourceCallback() { return &matcher; }
 private:
     ConnectCallMatcher matcher;

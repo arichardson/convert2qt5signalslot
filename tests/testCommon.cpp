@@ -385,12 +385,28 @@ int testMain(std::string input, std::string expected) {
 
     bool success = runTool(action, input);
     if (!success) {
-        outs() << "Failed to run tool!\n";
+        outs() << "Failed to run conversion!\n";
         return 1;
     }
     outs() << "\n";
     converter.printStats();
     outs().flush();
+    if (converter.matchesFound() <= 0) {
+        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: No matches found!\n").resetColor();
+        return 1;
+    }
+    if (converter.matchesFailed() > 0) {
+        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: Failed to convert " <<  converter.matchesFailed() << "matches!\n").resetColor();
+        return 1;
+    }
+    if (converter.matchesSkipped() > 0) {
+        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: Skipped " <<  converter.matchesSkipped() << "matches!\n").resetColor();
+        return 1;
+    }
+    if (converter.matchesConverted() != converter.matchesFound()) {
+        (outs().changeColor(llvm::raw_ostream::RED, true) << "Failure: matches converted != matches found!\n").resetColor();
+        return 1;
+    }
     ssize_t offsetAdjust = 0;
     for (const Replacement& rep : replacements) {
         if (rep.getFilePath() != FILE_NAME) {
@@ -400,12 +416,12 @@ int testMain(std::string input, std::string expected) {
         input.replace(size_t(offsetAdjust + ssize_t(rep.getOffset())), rep.getLength(), rep.getReplacementText().str());
         offsetAdjust += ssize_t(rep.getReplacementText().size()) - ssize_t(rep.getLength());
     }
-    outs() << "Comparing result with expected result...\n";
+    outs() << "\nComparing result with expected result...";
     if (input == expected) {
-        (outs().changeColor(llvm::raw_ostream::GREEN, true) << "Success!\n").resetColor();
+        (outs().changeColor(llvm::raw_ostream::GREEN, true) << " Success!\n").resetColor();
         return 0;
     }
-    outs().flush();
+    outs() << "\n\n";
     // something is wrong
     StringList expectedLines;
     boost::split(expectedLines, expected, isNewline);
@@ -434,6 +450,6 @@ int testMain(std::string input, std::string expected) {
             outs() << i << " = '" << expectedLines[i] << "'\n";
         }
     }
-    (outs().changeColor(llvm::raw_ostream::RED, true) << "Failed!\n").resetColor();
+    (outs().changeColor(llvm::raw_ostream::RED, true) << "\nFailed!\n").resetColor();
     return 1;
 }
