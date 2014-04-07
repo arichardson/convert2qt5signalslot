@@ -29,11 +29,13 @@ class Derived : public Base {
 public:
     Derived();
 Q_SIGNALS:
+    using Base::sigOverloadedDerived; // This is needed so that connection works with &Derived::slotOverloadedDerived
     void sigOverloadedDerived(int);
 public Q_SLOTS:
     virtual void slotOverride(int) override;
     using Base::slotOverloadedVirtual; // silence warning
     virtual void slotOverloadedVirtual(int);
+    using Base::slotOverloadedDerived; // This is needed so that connection works with &Derived::slotOverloadedDerived
     void slotOverloadedDerived(const char*);
     void slotHide(const char*);
 };
@@ -60,7 +62,7 @@ static const char* input = R"delim(
     QObject::connect(base, SIGNAL(sig_int(int)), derived, SLOT(slotOverride(int)));
 
     // this only needs disambiguation when connecting to Derived*
-    QObject::connect(base, SIGNAL(sig_ccp(const char*)), base, SLOT(slotOverloadedDerived(const char*)));
+    QObject::connect(base, SIGNAL(sig_int(int)), base, SLOT(slotOverloadedDerived(int)));
     QObject::connect(base, SIGNAL(sig_ccp(const char*)), derived, SLOT(slotOverloadedDerived(const char*)));
     QObject::connect(base, SIGNAL(sig_int(int)), derived, SLOT(slotOverloadedDerived(int)));
 
@@ -92,7 +94,7 @@ static const char* output = R"delim(
     QObject::connect(base, &Base::sig_int, derived, &Derived::slotOverride);
 
     // this only needs disambiguation when connecting to Derived*
-    QObject::connect(base, &Base::sig_ccp, base, &Base::slotOverloadedDerived);
+    QObject::connect(base, &Base::sig_int, base, &Base::slotOverloadedDerived);
     QObject::connect(base, &Base::sig_ccp, derived, static_cast<void(Derived::*)(const char*)>(&Derived::slotOverloadedDerived));
     QObject::connect(base, &Base::sig_int, derived, static_cast<void(Derived::*)(int)>(&Derived::slotOverloadedDerived));
 
