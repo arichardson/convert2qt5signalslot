@@ -184,12 +184,16 @@ static void foundOtherOverload(const ConnectCallMatcher::Parameters& p, const Ma
 
 
 void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
+    if (result.Context != lastAstContext) {
+        outs() << "\n\n\nAST context changed!\n\n\n";
+        lastAstContext = result.Context;
+        constCharPtrType = result.Context->getPointerType(result.Context->getConstType(result.Context->CharTy));
+    }
     Parameters p;
     p.call = result.Nodes.getNodeAs<CallExpr>("callExpr");
     p.decl = result.Nodes.getNodeAs<CXXMethodDecl>("decl");
     p.containingFunction = result.Nodes.getNodeAs<FunctionDecl>("parent");
     p.containingFunctionName = p.containingFunction->getQualifiedNameAsString();
-    const QualType constCharPtrType = result.Context->getPointerType(result.Context->getConstType(result.Context->CharTy));
     if (p.decl->getName() == "connect") {
         // check whether this is the inline implementation of the QObject::connect member function
         // this would be caught as foundWithoutStringLiterals, but since this happens in every file skip it

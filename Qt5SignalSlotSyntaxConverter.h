@@ -55,6 +55,8 @@ private:
     clang::CompilerInstance* currentCompilerInstance = nullptr;
     clang::Sema* sema = nullptr;
     clang::Preprocessor* pp = nullptr;
+    clang::ASTContext* lastAstContext = nullptr;
+    clang::QualType constCharPtrType;
     clang::tooling::Replacements* replacements = nullptr;
     const std::vector<std::string>& refactoringFiles;
 };
