@@ -94,12 +94,17 @@ static SourceRange getMacroExpansionRange(const Expr* expr, ASTContext* context,
     return SourceRange(beginLoc, endLoc);
 }
 
-static void printReplacementRange(SourceRange range, SourceManager* manager, const std::string& replacement) {
-    outs() << "Replacing ";
-    range.getBegin().print(outs(), *manager);
+static void printReplacementRange(SourceRange range, ASTContext* ctx, const std::string& replacement) {
+    outs() << "Replacing '";
+    colouredOut(llvm::raw_ostream::SAVEDCOLOR, true) << Lexer::getSourceText(CharSourceRange::getTokenRange(range), ctx->getSourceManager(), ctx->getLangOpts());
+    outs() << "' with '";
+    colouredOut(llvm::raw_ostream::SAVEDCOLOR, true) << replacement;
+
+    outs() << "' (from ";
+    range.getBegin().print(outs(), ctx->getSourceManager());
     outs() << " to ";
-    range.getEnd().print(outs(), *manager);
-    outs() << " with '" << replacement << "'\n";
+    range.getEnd().print(outs(), ctx->getSourceManager());
+    outs() << ")\n";
 }
 
 
@@ -275,9 +280,9 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
 
     const std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral, p.senderString);
     const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral, p.receiverString);
-    printReplacementRange(signalRange, result.SourceManager, signalReplacement);
+    printReplacementRange(signalRange, result.Context, signalReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
-    printReplacementRange(slotRange, result.SourceManager, slotReplacement);
+    printReplacementRange(slotRange, result.Context, slotReplacement);
     replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(slotRange), slotReplacement));
     convertedMatches++;
 }
@@ -362,7 +367,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
             // this must never happen
             assert(!p.slotLiteral);
         }
-        printReplacementRange(signalRange, result.SourceManager, signalReplacement);
+        printReplacementRange(signalRange, result.Context, signalReplacement);
         replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
     }
     else if (p.decl->isInstance()) {
@@ -397,14 +402,14 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         else {
             throw std::logic_error("QObject::disconnect member function with neither 2 nor 3 args found!");
         }
-        printReplacementRange(replacementRange, result.SourceManager, replacement);
+        printReplacementRange(replacementRange, result.Context, replacement);
         replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(replacementRange), replacement));
     }
     if (p.slotLiteral) {
         SourceRange slotRange = getMacroExpansionRange(p.slot, result.Context);
         const CXXRecordDecl* receiverTypeDecl = p.receiver->getBestDynamicClassType();
         const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral, p.receiverString);
-        printReplacementRange(slotRange, result.SourceManager, slotReplacement);
+        printReplacementRange(slotRange, result.Context, slotReplacement);
         replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(slotRange), slotReplacement));
     }
     convertedMatches++;
