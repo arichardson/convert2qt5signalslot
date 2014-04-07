@@ -254,7 +254,8 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     }
     p.signalLiteral = findfirstChildWithType<StringLiteral>(p.signal);
     p.slotLiteral = findfirstChildWithType<StringLiteral>(p.slot);
-    if (!p.signalLiteral && !p.slotLiteral) {
+    if (!p.signalLiteral || !p.slotLiteral) {
+        // both signal and slot must be string literals (SIGNAL()/SLOT() expansion)
         foundWithoutStringLiterals(p, result);
         return;
     }
