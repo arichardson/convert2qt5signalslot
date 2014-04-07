@@ -28,6 +28,22 @@ public:
     std::string calculateReplacementStr(const clang::CXXRecordDecl* type,
             const clang::StringLiteral* connectStr, const std::string& prepend);
     void printStats() const;
+    struct Parameters {
+        const clang::CallExpr* call = nullptr;
+        const clang::CXXMethodDecl* decl= nullptr;
+        const clang::FunctionDecl* containingFunction = nullptr;
+        const clang::Expr* sender = nullptr;
+        const clang::Expr* signal = nullptr;
+        const clang::Expr* slot = nullptr;
+        const clang::Expr* receiver = nullptr;
+        std::string containingFunctionName;
+        std::string senderString;
+        std::string receiverString;
+    };
+private:
+    void convertConnect(Parameters& p, const MatchFinder::MatchResult& result);
+    void convertDisconnect(Parameters& p, const MatchFinder::MatchResult& result);
+    void matchFound(const Parameters& p, const MatchFinder::MatchResult& result);
 private:
     std::atomic_int foundMatches;
     std::atomic_int convertedMatches;
