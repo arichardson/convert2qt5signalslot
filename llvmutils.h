@@ -2,6 +2,7 @@
 #define LLVMUTILS_H_
 
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/ADT/StringRef.h>
 
 struct ColouredOStream {
     ColouredOStream(llvm::raw_ostream& stream, llvm::raw_ostream::Colors colour, bool bold)
@@ -14,6 +15,11 @@ struct ColouredOStream {
         stream << value;
         return *this;
     }
+    ColouredOStream& writeEscaped(llvm::StringRef str, bool useHexEscapes = false) {
+        stream.write_escaped(str, useHexEscapes);
+        return *this;
+    }
+
 private:
     llvm::raw_ostream& stream;
 };

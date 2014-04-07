@@ -1,4 +1,5 @@
 #include "Qt5SignalSlotSyntaxConverter.h"
+#include "llvmutils.h"
 
 #include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/Basic/SourceManager.h>
@@ -121,15 +122,11 @@ void ConnectCallMatcher::run(const MatchFinder::MatchResult& result) {
     }
     catch (const SkipMatchException& e) {
         skippedMatches++;
-        (llvm::errs().changeColor(llvm::raw_ostream::BLUE, true) << "Not converting current match. Reason: ")
-                .write_escaped(e.what()) << "\n\n";
-        llvm::errs().resetColor();
+        (colouredErr(llvm::raw_ostream::BLUE) << "Not converting current match. Reason: ").writeEscaped(e.what()) << "\n\n";
     }
     catch (const std::exception& e) {
         failedMatches++;
-        (llvm::errs().changeColor(llvm::raw_ostream::RED, true) << "Failed to convert match: ")
-                .write_escaped(e.what()) << "\n\n";
-        llvm::errs().resetColor();
+        (colouredErr(llvm::raw_ostream::BLUE) << "Failed to convert match: ").writeEscaped(e.what()) << "\n\n";
     }
     llvm::outs().flush();
     llvm::errs().flush();
@@ -153,12 +150,12 @@ void ConnectCallMatcher::matchFound(const ConnectCallMatcher::Parameters& p, con
     llvm::outs() << "\nMatch " << ++foundMatches << " found at ";
     p.call->getExprLoc().print(llvm::outs(), *result.SourceManager);
 
-    llvm::outs() << " inside function " << p.containingFunctionName;
+    llvm::outs() << " inside function " << p.containingFunctionName << ": ";
     //llvm::outs() << ", num args: " << numArgs << ": ";
     //call->dumpPretty(*result.Context); //show result after macro expansion
 
     const std::string oldCall = expr2str(p.call, result.Context);
-    ((llvm::outs() << ": ").changeColor(llvm::raw_ostream::BLUE) << oldCall).resetColor() << "\n";
+    colouredOut(llvm::raw_ostream::BLUE) << oldCall << "\n";
 
     //check if we should touch this file
     const std::string filename = getRealPath(result.SourceManager->getFilename(p.call->getExprLoc()));
@@ -237,8 +234,8 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
 
     const StringLiteral* signalLiteral = findStringLiteralChild(p.signal);
     const StringLiteral* slotLiteral = findStringLiteralChild(p.slot);
-    llvm::outs() << "signal literal: " << (signalLiteral ? signalLiteral->getBytes() : "nullptr") << "\n";
-    llvm::outs() << "slot literal: " << (slotLiteral ? slotLiteral->getBytes() : "nullptr") << "\n";
+    (llvm::outs() << "signal literal: ").write_escaped(signalLiteral ? signalLiteral->getBytes() : "nullptr") << "\n";
+    (llvm::outs() << "slot literal: ").write_escaped(slotLiteral ? slotLiteral->getBytes() : "nullptr") << "\n";
 
 
     const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
@@ -375,13 +372,16 @@ void ConnectCallMatcher::handleEndSource() {
 }
 
 void ConnectCallMatcher::printStats() const {
-    (llvm::outs() << "Found " << foundMatches << " matches: ").changeColor(llvm::raw_ostream::GREEN) << convertedMatches << " converted sucessfully";
+    llvm::outs() << "Found " << foundMatches << " matches: ";
+    colouredOut(llvm::raw_ostream::GREEN) << convertedMatches << " converted sucessfully";
     if (failedMatches > 0) {
-        (llvm::outs().resetColor() << ", ").changeColor(llvm::raw_ostream::RED) << failedMatches << " conversions failed";
+        llvm::outs() << ", ";
+        colouredOut(llvm::raw_ostream::RED) << failedMatches << " conversions failed";
     }
     if (skippedMatches > 0) {
-        (llvm::outs().resetColor() << ", ").changeColor(llvm::raw_ostream::YELLOW) << skippedMatches << " conversions skipped";
+        llvm::outs() << ", ";
+        colouredOut(llvm::raw_ostream::YELLOW) << skippedMatches << " conversions skipped";
     }
-    llvm::outs().resetColor() << ".\n";
+    llvm::outs() << ".\n";
     llvm::outs().flush();
 }

@@ -433,9 +433,9 @@ int testMain(std::string input, std::string expected) {
     for (size_t i = 0; i < lineCount; ++i) {
         if (expectedLines[i] != resultLines[i]) {
             outs() << i << " expected:";
-            colouredOut(llvm::raw_ostream::GREEN) << expectedLines[i] << "\n";
+            colouredOut(llvm::raw_ostream::GREEN).writeEscaped(expectedLines[i]) << "\n";
             outs() << i << " result  :";
-            colouredOut(llvm::raw_ostream::RED) << resultLines[i] << "\n";
+            colouredOut(llvm::raw_ostream::RED).writeEscaped(resultLines[i]) << "\n";
         } else {
             //outs() << i << "  okay   :" << expectedLines[i] << "\n";
             // nothing
