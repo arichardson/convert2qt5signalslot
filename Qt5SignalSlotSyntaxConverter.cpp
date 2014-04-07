@@ -80,7 +80,7 @@ static StringRef signalSlotParameters(const StringLiteral* literal) {
 /** expr->getLocStart() + expr->getLocEnd() don't return the proper location if the expression is a macro expansion
  * this function fixes this
  */
-static SourceRange getMacroExpansionRange(const Expr* expr, ASTContext* context, bool* validMacroExpansion) {
+static SourceRange getMacroExpansionRange(const Expr* expr, ASTContext* context, bool* validMacroExpansion = nullptr) {
     SourceLocation beginLoc;
     const bool isMacroStart = Lexer::isAtStartOfMacroExpansion(expr->getLocStart(), context->getSourceManager(), context->getLangOpts(), &beginLoc);
     if (!isMacroStart)
@@ -185,7 +185,7 @@ static void foundOtherOverload(const ConnectCallMatcher::Parameters& p, const Ma
 
 void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     if (result.Context != lastAstContext) {
-        outs() << "\n\n\nAST context changed!\n\n\n";
+        //outs() << "\n\n\nAST context changed!\n\n\n";
         lastAstContext = result.Context;
         constCharPtrType = result.Context->getPointerType(result.Context->getConstType(result.Context->CharTy));
     }
@@ -213,7 +213,7 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     }
     // check that it is the correct overload with const char*
     const unsigned numArgs = p.decl->getNumParams();
-    if (numArgs == 5) {
+    if (numArgs == 5 && p.decl->isStatic()) {
         // static method connect(QObject*, const char*, QObject*, const char*, Qt::ConnectionType)
         if (p.decl->getParamDecl(1)->getType() != constCharPtrType
                 || p.decl->getParamDecl(3)->getType() != constCharPtrType) {
@@ -227,9 +227,10 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
         //connectionTypeExpr = call->getArg(4);
 
     }
-    else if (numArgs == 4) {
+    else if (numArgs == 4 && p.decl->isInstance()) {
+        assert(isa<CXXMemberCallExpr>(p.call)); // instance method -> must be member call expression
         // instance method connect(QObject*, const char*, const char*, Qt::ConnectionType)
-        if (!isa<CXXMemberCallExpr>(p.call) || p.decl->getParamDecl(1)->getType() != constCharPtrType
+        if (p.decl->getParamDecl(1)->getType() != constCharPtrType
                 || p.decl->getParamDecl(2)->getType() != constCharPtrType) {
             foundOtherOverload(p, result);
             return;
@@ -262,10 +263,8 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
 
     matchFound(p, result);
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
-    bool signalRangeOk;
-    SourceRange signalRange = getMacroExpansionRange(p.signal, result.Context, &signalRangeOk);
-    bool slotRangeOk;
-    SourceRange slotRange = getMacroExpansionRange(p.slot, result.Context, &slotRangeOk);
+    SourceRange signalRange = getMacroExpansionRange(p.signal, result.Context);
+    SourceRange slotRange = getMacroExpansionRange(p.slot, result.Context);
 
     (llvm::outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
     (llvm::outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
@@ -284,13 +283,131 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
 }
 
 void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
-    //TODO: implement
-    llvm::errs() << "converting disconnect not implemented!\n";
     // check whether this is the inline implementation of the QObject::disconnect member function
     if (p.containingFunctionName == "QObject::disconnect") {
         return; // this can't be converted
     }
+    std::string nullArgsAfterCall; // in case there were default arguments, we have to add these to the end of the call
+    const unsigned numArgs = p.decl->getNumParams();
+    if (numArgs == 4 && p.decl->isStatic()) {
+        // static method disconnect(QObject*, const char*, QObject*, const char*)
+        if (p.decl->getParamDecl(1)->getType() != constCharPtrType
+                || p.decl->getParamDecl(3)->getType() != constCharPtrType) {
+            foundOtherOverload(p, result);
+            return;
+        }
+        p.sender = p.call->getArg(0);
+        p.signal = p.call->getArg(1);
+        p.receiver = p.call->getArg(2);
+        p.slot = p.call->getArg(3);
+    }
+    else if (p.decl->isInstance()) {
+        assert(isa<CXXMemberCallExpr>(p.call)); // instance method -> must be a member call expression
+        const CXXMemberCallExpr* cxxCall = cast<CXXMemberCallExpr>(p.call);
+        if (numArgs == 2) {
+            if (p.decl->getParamDecl(1)->getType() != constCharPtrType) {
+                foundOtherOverload(p, result);
+                return;
+            }
+            // instance method disconnect(QObject* receiver, const char* method)
+            p.receiver = p.call->getArg(0);
+            p.slot = p.call->getArg(1);
+        }
+        else if (numArgs == 3) {
+            // instance method disconnect(const char* signal, QObject* receiver, const char* method)
+            if (p.decl->getParamDecl(0)->getType() != constCharPtrType
+                    || p.decl->getParamDecl(2)->getType() != constCharPtrType) {
+                foundOtherOverload(p, result);
+                return;
+            }
+            p.signal = p.call->getArg(0);
+            p.receiver = p.call->getArg(1);
+            p.slot = p.call->getArg(2);
+        }
+        // sender is always the this argument
+        p.sender = cxxCall->getImplicitObjectArgument();
+        // expand to "this" if it is a call such as "disconnect(0, 0, 0)" or to "foo()" with "foo()->disconnect(0, 0, 0)"
+        p.senderString = p.sender->isImplicitCXXThis() ? "this" : expr2str(p.sender, result.Context);
+        // TODO: allow nullptr/0/NULL/Q_NULLPTR
+        // there are no default arguments for the pointer-to-memberfunction syntax -> add null if it is a default argument
+        if (p.receiver->isDefaultArgument()) {
+            nullArgsAfterCall += ", 0";
+        }
+        if (p.slot->isDefaultArgument()) {
+            nullArgsAfterCall += ", 0";
+        }
+    }
+    else {
+        foundOtherOverload(p, result);
+        return;
+    }
+    p.signalLiteral = findFirstChildWithType<StringLiteral>(p.signal);
+    p.slotLiteral = findFirstChildWithType<StringLiteral>(p.slot);
+    if (!p.signalLiteral && !p.slotLiteral) {
+        // at least one of the parameters must be a string literal (SIGNAL()/SLOT() expansion)
+        foundWithoutStringLiterals(p, result);
+        return;
+    }
     matchFound(p, result);
+    (llvm::outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
+    (llvm::outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
+
+    //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
+    if (p.signalLiteral) {
+        SourceRange signalRange = getMacroExpansionRange(p.signal, result.Context);
+        const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
+        std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral, p.senderString) + nullArgsAfterCall;
+        if (!nullArgsAfterCall.empty()) {
+            // something is seriously wrong if there is a slot literal, but we have default parameters to append!
+            // this must never happen
+            assert(!p.slotLiteral);
+        }
+        printReplacementRange(signalRange, result.SourceManager, signalReplacement);
+        replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(signalRange), signalReplacement));
+    }
+    else if (p.decl->isInstance()) {
+        //no signal literal argument -> 3 possibilities:
+        // foo->disconnect(receiver, SLOT(func()))
+        // foo->disconnect(0, receiver, SLOT(func()))
+        // QObject::disconnect(foo, 0, receiver, SLOT(func()))
+        //
+        // they must all expand to QObject::disconnect(foo, 0, receiver, &Receiver::func)
+        // doesn't compile yet with latest Qt, needs a patch
+
+        // only the member calls need the sender parameter added, since it is already present with the static call
+        SourceRange replacementRange;
+        std::string replacement;
+        if (numArgs == 2) {
+            // disconnect(QObject* receiver, const char* method) ->  replace "receiver" with "sender, 0, receiver"
+            replacementRange = getMacroExpansionRange(p.receiver, result.Context);
+            assert(!p.signal);
+            assert(!p.receiver->isDefaultArgument()); // must be explicitly passed
+            // TODO: customize nullptr
+            replacement = p.senderString + ", 0, " + expr2str(p.receiver, result.Context);
+
+        }
+        else if (numArgs == 3) {
+            // disconnect(const char* signal, QObject* receiver, const char* method) -> replace "signal" with "sender, signal"
+            assert(p.signal);
+            replacementRange = getMacroExpansionRange(p.signal, result.Context);
+            // TODO: customize nullptr
+            const std::string signalString = p.signal->isDefaultArgument() ? "0" : expr2str(p.signal, result.Context);
+            replacement = p.senderString + ", " + signalString;
+        }
+        else {
+            throw std::logic_error("QObject::disconnect member function with neither 2 nor 3 args found!");
+        }
+        printReplacementRange(replacementRange, result.SourceManager, replacement);
+        replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(replacementRange), replacement));
+    }
+    if (p.slotLiteral) {
+        SourceRange slotRange = getMacroExpansionRange(p.slot, result.Context);
+        const CXXRecordDecl* receiverTypeDecl = p.receiver->getBestDynamicClassType();
+        const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral, p.receiverString);
+        printReplacementRange(slotRange, result.SourceManager, slotReplacement);
+        replacements->insert(Replacement(*result.SourceManager, CharSourceRange::getTokenRange(slotRange), slotReplacement));
+    }
+    convertedMatches++;
 }
 
 
@@ -376,10 +493,14 @@ void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
 
     // !!!! when using asString it is very important to write "const char *" and not "const char*", since that doesn't work
     // handle both connect overloads with SIGNAL() and SLOT()
-    matchFinder->addMatcher(
-        id("callExpr", callExpr(
-            hasDeclaration(id("decl", methodDecl(hasName("::QObject::connect")))),
-            hasAncestor(id("parent", functionDecl())) // not strictly required, but nice to have this information
+    matchFinder->addMatcher(id("callExpr", callExpr(
+            hasDeclaration(id("decl", methodDecl(
+                    anyOf(
+                        hasName("::QObject::connect"),
+                        hasName("::QObject::disconnect")
+                    )
+            ))),
+            hasAncestor(id("parent", functionDecl()))
         )), &matcher);
 }
 
