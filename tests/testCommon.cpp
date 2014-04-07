@@ -10,7 +10,7 @@
 #include <boost/algorithm/string/split.hpp>
 
 using namespace clang::tooling;
-using llvm::errs;
+using llvm::outs;
 
 #define BASE_DIR "/this/path/does/not/exist"
 
@@ -370,27 +370,27 @@ int testMain(std::string input, std::string expected) {
 
     bool success = runTool(action, input);
     if (!success) {
-        errs() << "Failed to run tool!\n";
+        outs() << "Failed to run tool!\n";
         return 1;
     }
-    llvm::outs() << "\n";
+    outs() << "\n";
     converter.printStats();
-    llvm::outs().flush();
+    outs().flush();
     ssize_t offsetAdjust = 0;
     for (const Replacement& rep : replacements) {
         if (rep.getFilePath() != FILE_NAME) {
-            llvm::errs() << "Attempting to write to illegal file:" << rep.getFilePath() << "\n";
+            outs() << "Attempting to write to illegal file:" << rep.getFilePath() << "\n";
             success = false;
         }
         input.replace(size_t(offsetAdjust + ssize_t(rep.getOffset())), rep.getLength(), rep.getReplacementText().str());
         offsetAdjust += ssize_t(rep.getReplacementText().size()) - ssize_t(rep.getLength());
     }
-    llvm::outs() << "Comparing result with expected result...\n";
-    llvm::outs().flush();
+    outs() << "Comparing result with expected result...\n";
     if (input == expected) {
-        llvm::outs() << "Success!\n";
+        (outs().changeColor(llvm::raw_ostream::GREEN, true) << "Success!\n").resetColor();
         return 0;
     }
+    outs().flush();
     // something is wrong
     StringList expectedLines;
     boost::split(expectedLines, expected, isNewline);
@@ -399,27 +399,26 @@ int testMain(std::string input, std::string expected) {
     auto lineCount = std::min(resultLines.size(), expectedLines.size());
     for (size_t i = 0; i < lineCount; ++i) {
         if (expectedLines[i] != resultLines[i]) {
-            ((((llvm::errs() << i << " expected:").changeColor(llvm::raw_ostream::GREEN, true) << expectedLines[i]).resetColor()
+            ((((outs() << i << " expected:").changeColor(llvm::raw_ostream::GREEN, true) << expectedLines[i]).resetColor()
                     << "\n" << i << " result  :").changeColor(llvm::raw_ostream::RED, true) << resultLines[i]).resetColor()
                     << "\n";
         } else {
-            //llvm::errs() << i << "  okay   :" << expectedLines[i] << "\n";
+            //outs() << i << "  okay   :" << expectedLines[i] << "\n";
             // nothing
         }
     }
     if (resultLines.size() > lineCount) {
-        llvm::errs() << "Additional lines in result:\n";
+        outs() << "Additional lines in result:\n";
         for (size_t i = lineCount; i < resultLines.size(); ++i) {
-            llvm::errs() << i << " = '" << resultLines[i] << "'\n";
+            outs() << i << " = '" << resultLines[i] << "'\n";
         }
     }
     if (expectedLines.size() > lineCount) {
-        llvm::errs() << "Additional lines in expected:\n";
+        outs() << "Additional lines in expected:\n";
         for (size_t i = lineCount; i < expectedLines.size(); ++i) {
-            llvm::errs() << i << " = '" << expectedLines[i] << "'\n";
+            outs() << i << " = '" << expectedLines[i] << "'\n";
         }
     }
-    llvm::errs().flush();
-    llvm::outs().flush();
+    (outs().changeColor(llvm::raw_ostream::RED, true) << "Failed!\n").resetColor();
     return 1;
 }
