@@ -37,6 +37,9 @@ static inline ColouredOStream colouredErr(llvm::raw_ostream::Colors colour, bool
 /** find the first child of @p stmt or with type @p T or null if none found */
 template<class T>
 static const T* findfirstChildWithType(const clang::Stmt* stmt) {
+    if (!stmt) {
+        return nullptr;
+    }
     using namespace llvm;
     for (auto it = stmt->child_begin(); it != stmt->child_end(); ++it) {
         const T* ret = dyn_cast<T>(*it);
