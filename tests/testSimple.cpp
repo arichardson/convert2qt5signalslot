@@ -29,6 +29,8 @@ Test::Test() {
     //same thing, but use a connection type
     connect(this, SIGNAL(objectNameChanged(QString)), SLOT(deleteLater()),
         Qt::QueuedConnection);
+    // this one is already converted -> no change!
+    connect(this, &Test::objectNameChanged, other, &QObject::deleteLater);
 }
 )delim";
 
@@ -61,6 +63,8 @@ Test::Test() {
     //same thing, but use a connection type
     connect(this, &Test::objectNameChanged, this, &Test::deleteLater,
         Qt::QueuedConnection);
+    // this one is already converted -> no change!
+    connect(this, &Test::objectNameChanged, other, &QObject::deleteLater);
 }
 )delim";
 
