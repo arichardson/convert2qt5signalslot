@@ -29,6 +29,7 @@ using llvm::outs;
 using llvm::errs;
 
 static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
+static llvm::cl::opt<bool> verboseMode("verbose", llvm::cl::cat(clCategory), llvm::cl::desc("Enable verbose output"));
 static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clCategory), llvm::cl::ZeroOrMore,
         llvm::cl::desc("signals/slots with this prefix will be skipped (useful for Q_PRIVATE_SLOTS). May be passed multiple times.") );
 
@@ -166,14 +167,15 @@ static void foundWrongCall(const ConnectCallMatcher::Parameters& p, const MatchF
 }
 
 static void foundWithoutStringLiterals(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
-    // TODO: don't print anything unless in verbose mode
     outs() << "Found QObject::" << p.decl->getName() << "() call that doesn't use SIGNAL()/SLOT() inside function "
             << p.containingFunctionName << ": ";
     foundWrongCall(p, result);
 }
 
 static void foundOtherOverload(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
-    // TODO: don't print anything unless in verbose mode
+    if (!verboseMode) {
+        return;
+    }
     outs() << "Found QObject::" << p.decl->getName() << "() overload without const char* parameters inside function "
             << p.containingFunctionName << ": ";
     foundWrongCall(p, result);
@@ -271,8 +273,10 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     SourceRange signalRange = getMacroExpansionRange(p.signal, result.Context);
     SourceRange slotRange = getMacroExpansionRange(p.slot, result.Context);
 
-    (outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
-    (outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
+    if (verboseMode) {
+        (outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
+        (outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
+    }
 
 
     const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
@@ -354,8 +358,10 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         return;
     }
     matchFound(p, result);
-    (outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
-    (outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
+    if (verboseMode) {
+        (outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
+        (outs() << "slot literal: ").write_escaped(p.slotLiteral ? p.slotLiteral->getBytes() : "nullptr") << "\n";
+    }
 
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
     if (p.signalLiteral) {
@@ -445,14 +451,20 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
                     //make sure we don't add overrides
                     FunctionDecl* d1 = info->results[0];
                     const bool overload = info->sema->IsOverload(*it, d1, false);
-                    outs() << (*it)->getQualifiedNameAsString() << " is an overload of " << d1->getQualifiedNameAsString() << " = " << overload << "\n";
+                    if (verboseMode) {
+                        outs() << (*it)->getQualifiedNameAsString() << " is an overload of " << d1->getQualifiedNameAsString() << " = " << overload << "\n";
+                    }
                     if (overload) {
-                        outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
+                        if (verboseMode) {
+                            outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
+                        }
                         info->results.push_back(*it);
                     }
                 }
                 else {
-                    outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
+                    if (verboseMode) {
+                        outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
+                    }
                     info->results.push_back(*it);
                 }
 //                outs() << "Found " << searchInfo->results.size() << ". defintion: "
@@ -463,7 +475,9 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     };
     searchLambda(type, &searchInfo); //search baseClass
     type->forallBases(searchLambda, &searchInfo, false); //now find in base classes
-    outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << searchInfo.methodName << ": " << searchInfo.results.size() << " results\n";
+    if (verboseMode) {
+        outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << searchInfo.methodName << ": " << searchInfo.results.size() << " results\n";
+    }
     SmallString<128> result;
     if (!prepend.empty()) {
         result = prepend + ", ";
@@ -471,8 +485,10 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     //TODO abort if none found
     const bool resolveOverloads = searchInfo.results.size() > 1; //TODO skip overriden methods!
     if (resolveOverloads) {
-        outs() << type->getName() << "::" << searchInfo.methodName << " is a overloaded signal/slot. Found "
-                << searchInfo.results.size() << " overloads.\n";
+        if (verboseMode) {
+            outs() << type->getName() << "::" << searchInfo.methodName << " is a overloaded signal/slot. Found "
+                    << searchInfo.results.size() << " overloads.\n";
+        }
         //overloaded signal/slot found -> we have to disambiguate
         searchInfo.parameters = signalSlotParameters(connectStr);
         result += "static_cast<void("; //TODO return type
