@@ -325,7 +325,12 @@ public:
     static inline bool disconnect(const typename QtPrivate::FunctionPointer<Func1>::Object *sender, Func1 signal,
                                   const QObject *receiver, void **zero)
     {
-        typedef QtPrivate::FunctionPointer<Func1> SignalType;
+        return true;
+    }
+    template <typename Func1>
+    static inline bool disconnect(const QObject *receiver, void **zero,
+                                  const typename QtPrivate::FunctionPointer<Func1>::Object *sender, Func1 signal)
+    {
         return true;
     }
 
