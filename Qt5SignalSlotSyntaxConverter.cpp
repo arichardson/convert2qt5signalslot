@@ -212,6 +212,24 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
     }
 }
 
+/** @return the string representation for the implicit receiver argument in connect/ sender argument in disconnect*/
+static std::string membercallImplicitParameter(const Expr* thisArg, ASTContext* ctx) {
+    const std::string stringRepresentation = thisArg->isImplicitCXXThis() ? "this" : expr2str(thisArg, ctx);
+    // outs() << "\n\nType of " << stringRepresentation << " is " << thisArg->getType().getAsString() << "\n";
+    // thisArg->dump(outs(), ctx->getSourceManager());
+    // outs() << "\nlvalue: " << thisArg->isLValue() << " rvalue: " << thisArg->isRValue() << " xvalue: " << thisArg->isXValue()  << " glvalue: " << thisArg->isGLValue() << "\n";
+
+    // we have to add an address-of operator if it is not a pointer, but instead a value or reference
+    if (!thisArg->getType()->isPointerType()) {
+        if (verboseMode) {
+            outs() << stringRepresentation << " is not a pointer -> taking address.\n";
+        }
+        return "&" + stringRepresentation;
+    }
+    return stringRepresentation;
+
+}
+
 void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
     // check whether this is the inline implementation of the QObject::connect member function
     // this would be caught as foundWithoutStringLiterals, but since this happens in every file skip it
@@ -248,13 +266,7 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
         p.slot = p.call->getArg(2);
         p.receiver = cxxCall->getImplicitObjectArgument(); //get this pointer
         //connectionTypeExpr = call->getArg(3);
-        if (p.receiver->isImplicitCXXThis()) {
-            p.receiverString = "this";
-        }
-        else {
-            // this expands to foo() in foo()->connect(...)
-            p.receiverString = expr2str(p.receiver, result.Context);
-        }
+        p.receiverString = membercallImplicitParameter(p.receiver, result.Context);
     }
     else {
         foundOtherOverload(p, result);
@@ -336,7 +348,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         // sender is always the this argument
         p.sender = cxxCall->getImplicitObjectArgument();
         // expand to "this" if it is a call such as "disconnect(0, 0, 0)" or to "foo()" with "foo()->disconnect(0, 0, 0)"
-        p.senderString = p.sender->isImplicitCXXThis() ? "this" : expr2str(p.sender, result.Context);
+        p.senderString = membercallImplicitParameter(p.sender, result.Context);
         // TODO: allow nullptr/0/NULL/Q_NULLPTR
         // there are no default arguments for the pointer-to-memberfunction syntax -> add null if it is a default argument
         if (p.receiver->isDefaultArgument()) {
