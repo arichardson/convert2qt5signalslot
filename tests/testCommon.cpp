@@ -14,11 +14,6 @@
 using namespace clang::tooling;
 using llvm::outs;
 
-#define BASE_DIR "/this/path/does/not/exist"
-
-#define FILE_NAME BASE_DIR "/test-input.cpp"
-#define FAKE_QOBJECT_H_NAME BASE_DIR "/fake_qobject.h"
-
 static const char* fakeQObjectCode =
         R"delim(
 
@@ -348,7 +343,7 @@ typedef std::vector<std::string> StringList;
 static const auto isNewline = [](char c) {return c == '\n';};
 
 static bool runTool(clang::FrontendAction *toolAction, const std::string code) {
-    std::vector<std::string> commands { "clang-tool", "-Wall", "-fsyntax-only", "-std=c++11", FILE_NAME };
+    std::vector<std::string> commands { "clang-tool", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR, FILE_NAME };
     clang::FileSystemOptions opt;
     opt.WorkingDir = BASE_DIR;
     clang::FileManager* files = new clang::FileManager{ opt };
@@ -397,11 +392,11 @@ int testMain(std::string input, std::string expected, int found, int converted) 
         return 1;
     }
     if (converter.matchesFailed() > 0) {
-        colouredOut(llvm::raw_ostream::RED) << "Failure: Failed to convert " <<  converter.matchesFailed() << "matches!\n";
+        colouredOut(llvm::raw_ostream::RED) << "Failure: Failed to convert " <<  converter.matchesFailed() << " matches!\n";
         return 1;
     }
     if (converter.matchesSkipped() > 0) {
-        colouredOut(llvm::raw_ostream::RED) << "Failure: Skipped " <<  converter.matchesSkipped() << "matches!\n";
+        colouredOut(llvm::raw_ostream::RED) << "Failure: Skipped " <<  converter.matchesSkipped() << " matches!\n";
         return 1;
     }
     if (found != converter.matchesFound()) {
