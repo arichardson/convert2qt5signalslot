@@ -33,6 +33,9 @@ static inline ColouredOStream colouredErr(llvm::raw_ostream::Colors colour, bool
     return ColouredOStream(llvm::errs(), colour, bold);
 }
 
+static inline bool isNullPointerConstant(const clang::Expr* expr, clang::ASTContext* ctx) {
+    return expr->isNullPointerConstant(*ctx, clang::Expr::NPC_NeverValueDependent) == clang::Expr::NPCK_NotNull;
+}
 
 /** find the first child of @p stmt or with type @p T or null if none found */
 template<class T>
