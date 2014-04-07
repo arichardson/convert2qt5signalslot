@@ -36,7 +36,7 @@ static inline ColouredOStream colouredErr(llvm::raw_ostream::Colors colour, bool
 
 /** find the first child of @p stmt or with type @p T or null if none found */
 template<class T>
-static const T* findfirstChildWithType(const clang::Stmt* stmt) {
+static const T* findFirstChildWithType(const clang::Stmt* stmt) {
     if (!stmt) {
         return nullptr;
     }
@@ -47,7 +47,7 @@ static const T* findfirstChildWithType(const clang::Stmt* stmt) {
             return ret;
         }
         // try children now
-        ret = findfirstChildWithType<T>(*it);
+        ret = findFirstChildWithType<T>(*it);
         if (ret) {
             return ret;
         }

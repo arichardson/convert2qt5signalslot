@@ -252,8 +252,8 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
         foundOtherOverload(p, result);
         return;
     }
-    p.signalLiteral = findfirstChildWithType<StringLiteral>(p.signal);
-    p.slotLiteral = findfirstChildWithType<StringLiteral>(p.slot);
+    p.signalLiteral = findFirstChildWithType<StringLiteral>(p.signal);
+    p.slotLiteral = findFirstChildWithType<StringLiteral>(p.slot);
     if (!p.signalLiteral || !p.slotLiteral) {
         // both signal and slot must be string literals (SIGNAL()/SLOT() expansion)
         foundWithoutStringLiterals(p, result);
