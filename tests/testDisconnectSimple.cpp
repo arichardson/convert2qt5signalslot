@@ -30,7 +30,7 @@ equivalent to the non-static overloaded function
 
  */
 static const char* input = R"delim(
-#include "fake_qobject.h"
+#include <qobjectdefs.h>
 
 int main() {
     QObject* myObject = new QObject();
@@ -69,7 +69,7 @@ int main() {
 //TODO: myObject->disconnect(myObject, &QObject::objectNameChanged, 0, 0) -> QObject::disconnect(myObject, &QObject::objectNameChanged, 0, 0)
 // call that do not contain SIGNAL()/SLOT() don't have to be converted!
 static const char* output = R"delim(
-#include "fake_qobject.h"
+#include <qobjectdefs.h>
 
 int main() {
     QObject* myObject = new QObject();

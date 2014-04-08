@@ -1,7 +1,7 @@
 #include "testCommon.h"
 
 static const char* input = R"delim(
-#include "fake_qobject.h"
+#include <qobjectdefs.h>
 
 namespace NS1 {
 class Foo1  : public QObject {
@@ -70,7 +70,7 @@ void Test::globalUsingDirectives() {
 )delim";
 
 static const char* output = R"delim(
-#include "fake_qobject.h"
+#include <qobjectdefs.h>
 
 namespace NS1 {
 class Foo1  : public QObject {
