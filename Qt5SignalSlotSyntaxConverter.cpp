@@ -79,23 +79,6 @@ static StringRef signalSlotParameters(const StringLiteral* literal) {
     return result;
 }
 
-/** expr->getLocStart() + expr->getLocEnd() don't return the proper location if the expression is a macro expansion
- * this function fixes this
- */
-static SourceRange getMacroExpansionRange(const Expr* expr, ASTContext* context, bool* validMacroExpansion = nullptr) {
-    SourceLocation beginLoc;
-    const bool isMacroStart = Lexer::isAtStartOfMacroExpansion(expr->getLocStart(), context->getSourceManager(), context->getLangOpts(), &beginLoc);
-    if (!isMacroStart)
-        beginLoc = expr->getLocStart();
-    SourceLocation endLoc;
-    const bool isMacroEnd = Lexer::isAtEndOfMacroExpansion(expr->getLocEnd(), context->getSourceManager(), context->getLangOpts(), &endLoc);
-    if (!isMacroEnd)
-        endLoc = expr->getLocEnd();
-    if (validMacroExpansion)
-        *validMacroExpansion = isMacroStart && isMacroEnd;
-    return SourceRange(beginLoc, endLoc);
-}
-
 static void printReplacementRange(SourceRange range, ASTContext* ctx, const std::string& replacement) {
     outs() << "Replacing '";
     colouredOut(llvm::raw_ostream::SAVEDCOLOR, true) << Lexer::getSourceText(CharSourceRange::getTokenRange(range), ctx->getSourceManager(), ctx->getLangOpts());
@@ -282,8 +265,8 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
 
     matchFound(p, result);
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
-    SourceRange signalRange = getMacroExpansionRange(p.signal, result.Context);
-    SourceRange slotRange = getMacroExpansionRange(p.slot, result.Context);
+    SourceRange signalRange = sourceRangeForStmt(p.signal, result.Context);
+    SourceRange slotRange = sourceRangeForStmt(p.slot, result.Context);
 
     if (verboseMode) {
         (outs() << "signal literal: ").write_escaped(p.signalLiteral ? p.signalLiteral->getBytes() : "nullptr") << "\n";
@@ -381,7 +364,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
 
     //get the start/end location for the SIGNAL/SLOT macros, since getLocStart() and getLocEnd() don't return the right result for expanded macros
     if (p.signalLiteral) {
-        SourceRange signalRange = getMacroExpansionRange(p.signal, result.Context);
+        SourceRange signalRange = sourceRangeForStmt(p.signal, result.Context);
         const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
         std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral, p.senderString) + nullArgsAfterCall;
         if (!nullArgsAfterCall.empty()) {
@@ -406,7 +389,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         std::string replacement;
         if (numArgs == 2) {
             // disconnect(QObject* receiver, const char* method) ->  replace "receiver" with "sender, 0, receiver"
-            replacementRange = getMacroExpansionRange(p.receiver, result.Context);
+            replacementRange = sourceRangeForStmt(p.receiver, result.Context);
             assert(!p.signal);
             assert(!p.receiver->isDefaultArgument()); // must be explicitly passed
             // TODO: customize nullptr
@@ -416,7 +399,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         else if (numArgs == 3) {
             // disconnect(const char* signal, QObject* receiver, const char* method) -> replace "signal" with "sender, signal"
             assert(p.signal);
-            replacementRange = getMacroExpansionRange(p.signal, result.Context);
+            replacementRange = sourceRangeForStmt(p.signal, result.Context);
             // TODO: customize nullptr
             const std::string signalString = p.signal->isDefaultArgument() ? "0" : expr2str(p.signal, result.Context);
             replacement = p.senderString + ", " + signalString;
