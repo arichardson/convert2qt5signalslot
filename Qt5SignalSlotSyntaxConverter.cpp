@@ -254,7 +254,6 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
 
     }
     else if (numArgs == 4 && p.decl->isInstance()) {
-        assert(isa<CXXMemberCallExpr>(p.call)); // instance method -> must be member call expression
         // instance method connect(QObject*, const char*, const char*, Qt::ConnectionType)
         if (p.decl->getParamDecl(1)->getType() != constCharPtrType
                 || p.decl->getParamDecl(2)->getType() != constCharPtrType) {
@@ -324,7 +323,6 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         p.slot = p.call->getArg(3);
     }
     else if (p.decl->isInstance()) {
-        assert(isa<CXXMemberCallExpr>(p.call)); // instance method -> must be a member call expression
         const CXXMemberCallExpr* cxxCall = cast<CXXMemberCallExpr>(p.call);
         if (numArgs == 2) {
             if (p.decl->getParamDecl(1)->getType() != constCharPtrType) {
