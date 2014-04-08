@@ -1,4 +1,5 @@
 #include "Qt5SignalSlotSyntaxConverter.h"
+#include "PreProcessorCallback.h"
 #include "llvmutils.h"
 
 #include <clang/ASTMatchers/ASTMatchers.h>
@@ -545,6 +546,8 @@ void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
 bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::StringRef Filename) {
     outs() << "Handling file: " << Filename << "\n";
     currentCompilerInstance = &CI;
+    Preprocessor& pp = currentCompilerInstance->getPreprocessor();
+    pp.addPPCallbacks(new ConverterPPCallbacks(pp));
     return true;
 }
 
