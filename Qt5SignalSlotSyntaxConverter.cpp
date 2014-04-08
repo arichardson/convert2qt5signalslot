@@ -36,8 +36,8 @@ static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clC
 
 //http://stackoverflow.com/questions/11083066/getting-the-source-behind-clangs-ast
 static std::string expr2str(const Expr *d, ASTContext* ctx) {
-    clang::SourceLocation b(d->getLocStart()), _e(d->getLocEnd());
-    clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, ctx->getSourceManager(), ctx->getLangOpts()));
+    clang::SourceLocation b(d->getLocStart());
+    clang::SourceLocation e(sourceLocationAfterStmt(d, ctx));
     const char* start = ctx->getSourceManager().getCharacterData(b);
     const char* end = ctx->getSourceManager().getCharacterData(e);
     if (!start || !end || end < start) {
