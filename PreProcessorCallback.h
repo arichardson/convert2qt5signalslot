@@ -27,7 +27,6 @@ public:
 protected:
     void MacroUndefined(const clang::Token& token, const clang::MacroDirective*) override {
         if (token.getIdentifierInfo()->getName() == "Q_PRIVATE_SLOT") {
-            llvm::outs() << "Q_PRIVATE_SLOT undefined\n";
             if (!addingQ_PRIVATE_SLOT_defintion) {
                 pp.getDiagnostics().Report(token.getLocation(), undefWarningDiagId) << "Q_PRIVATE_SLOT";
                 // we have to redefine it to what it should be
@@ -39,9 +38,7 @@ protected:
     void MacroDefined(const clang::Token& token, const clang::MacroDirective* md) override {
         //llvm::outs() << "macro defined: " << token.getIdentifierInfo()->getName() << "\n";
         if (token.getIdentifierInfo()->getName() == "Q_PRIVATE_SLOT") {
-            llvm::outs() << "Q_PRIVATE_SLOT defined\n";
             if (!addingQ_PRIVATE_SLOT_defintion) {
-                llvm::outs() << "Q_PRIVATE_SLOT redefined\n";
                 pp.getDiagnostics().Report(token.getLocation(), redefWarningDiagId) << "Q_PRIVATE_SLOT";
                 // we have to redefine it to what it should be
                 addQ_PRIVATE_SLOT_definition(token.getLocation());
@@ -50,7 +47,7 @@ protected:
     }
     virtual void FileChanged(clang::SourceLocation loc, FileChangeReason reason, clang::SrcMgr::CharacteristicKind, clang::FileID prevFID) override {
         clang::PresumedLoc presumedLoc = pp.getSourceManager().getPresumedLoc(loc, false);
-        llvm::outs() << "File changed: name=" << presumedLoc.getFilename() << ", reason=" << reason << "\n";
+        //llvm::outs() << "File changed: name=" << presumedLoc.getFilename() << ", reason=" << reason << "\n";
         if (!initialized) {
             initialized = true;
             addQ_PRIVATE_SLOT_definition({});
