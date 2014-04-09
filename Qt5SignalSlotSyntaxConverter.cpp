@@ -431,6 +431,17 @@ void ConnectCallMatcher::tryRemovingMembercallArg(const ConnectCallMatcher::Para
         return; // nothing to remove and we don't need QObject:: since this is a QObject subclass
     }
     std::string replacement;
+    // check whether we need to prefix with QObject::
+    if (const CXXMethodDecl* containingMethod = dyn_cast<CXXMethodDecl>(p.containingFunction)) {
+        // no need for prefix if we are inside a QObject subclass method since it is automatically in scope
+        if (!inheritsFrom(containingMethod->getParent(), "class QObject")) {
+            replacement = "QObject::";
+        }
+    }
+    else {
+        // non-class method (e.g. main()) -> have to add QObject::
+        replacement = "QObject::";
+    }
     // remove 2 more chars if pointer ("->"), or only one otherwise (".")
     const int additionalCharsToRemove = objArg->getType()->isPointerType() ? 2 : 1;
     SourceRange range = sourceRangeForStmt(objArg, result.Context, additionalCharsToRemove);

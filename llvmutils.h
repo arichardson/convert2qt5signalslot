@@ -91,4 +91,26 @@ static inline clang::SourceRange sourceRangeForStmt(const clang::Stmt* stmt, cla
     return clang::SourceRange(sourceLocationBeforeStmt(stmt, ctx), sourceLocationAfterStmt(stmt, ctx, offset));
 }
 
+/** Checks whether @p cls inherits from a class named @p name with the specified access (public, private, protected, none)
+ *
+ * @param name can be something like "class QObject" (must match the way a QualType is converted to string) */
+static inline bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* name,
+        clang::AccessSpecifier access = clang::AS_public) {
+    for (auto it = cls->bases_begin(); it != cls->bases_end(); ++it) {
+        clang::QualType type = it->getType();
+        const std::string typeName = type.getAsString();
+        if (it->getAccessSpecifier() == access && typeName == name) {
+            return true;
+        }
+        auto baseDecl = type->getAsCXXRecordDecl(); // will always succeed
+        assert(baseDecl);
+        // now check the base classes for the base class
+        bool found = inheritsFrom(baseDecl, name, access);
+        if (found) {
+            return true;
+        }
+    }
+    return false;
+}
+
 #endif /* LLVMUTILS_H_ */
