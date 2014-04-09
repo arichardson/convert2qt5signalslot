@@ -84,9 +84,9 @@ int main() {
 
     // disconnect everything from myObject::objectNameChanged
     QObject::disconnect(myObject, &QObject::objectNameChanged, 0, 0);
-    myObject->disconnect(myObject, &QObject::objectNameChanged, 0, 0); // same as this
-    myObject->disconnect(myObject, &QObject::objectNameChanged, 0, 0); // and this
-    myObject->disconnect(myObject, &QObject::objectNameChanged, 0, 0); // and this
+    QObject::disconnect(myObject, &QObject::objectNameChanged, 0, 0); // same as this
+    QObject::disconnect(myObject, &QObject::objectNameChanged, 0, 0); // and this
+    QObject::disconnect(myObject, &QObject::objectNameChanged, 0, 0); // and this
 
     // disconnect everything from myObject connected to receiver
     QObject::disconnect(myObject, 0, receiver, 0);
@@ -96,12 +96,12 @@ int main() {
 
     // disconnect everything from myObject connected to receiver::deleteLater
     QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater);
-    myObject->disconnect(myObject, 0, receiver, &QObject::deleteLater); // same as this
-    myObject->disconnect(myObject, 0, receiver, &QObject::deleteLater); // and this
+    QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater); // same as this
+    QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater); // and this
 
     // disconnect everything from myObject::objectNameChanged connected to receiver::deleteLater
     QObject::disconnect(myObject, &QObject::objectNameChanged, receiver, &QObject::deleteLater);
-    myObject->disconnect(myObject, &QObject::objectNameChanged, receiver, &QObject::deleteLater); // same as this
+    QObject::disconnect(myObject, &QObject::objectNameChanged, receiver, &QObject::deleteLater); // same as this
 }
 )delim";
 
