@@ -292,7 +292,6 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
     if (p.containingFunctionName == "QObject::disconnect") {
         return; // this can't be converted
     }
-    std::string nullArgsAfterCall; // in case there were default arguments, we have to add these to the end of the call
     const unsigned numArgs = p.decl->getNumParams();
     if (numArgs == 4 && p.decl->isStatic()) {
         // static method disconnect(QObject*, const char*, QObject*, const char*)
@@ -332,14 +331,6 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         p.sender = cxxCall->getImplicitObjectArgument();
         // expand to "this" if it is a call such as "disconnect(0, 0, 0)" or to "foo()" with "foo()->disconnect(0, 0, 0)"
         p.senderString = membercallImplicitParameter(p.sender, result.Context);
-        // TODO: allow nullptr/0/NULL/Q_NULLPTR
-        // there are no default arguments for the pointer-to-memberfunction syntax -> add null if it is a default argument
-        if (p.receiver->isDefaultArgument()) {
-            nullArgsAfterCall += ", 0";
-        }
-        if (p.slot->isDefaultArgument()) {
-            nullArgsAfterCall += ", 0";
-        }
     }
     else {
         foundOtherOverload(p, result);
@@ -367,12 +358,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
     if (p.signalLiteral) {
         SourceRange signalRange = sourceRangeForStmt(p.signal, result.Context);
         const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
-        std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral, p.senderString) + nullArgsAfterCall;
-        if (!nullArgsAfterCall.empty()) {
-            // something is seriously wrong if there is a slot literal, but we have default parameters to append!
-            // this must never happen
-            assert(!p.slotLiteral);
-        }
+        std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral, p.senderString);
         addReplacement(signalRange, signalReplacement, result.Context);
     }
     else if (p.decl->isInstance()) {
@@ -415,6 +401,22 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         const CXXRecordDecl* receiverTypeDecl = p.receiver->getBestDynamicClassType();
         const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral, p.receiverString);
         addReplacement(slotRange, slotReplacement, result.Context);
+    }
+    // add the default arguments
+    if (p.receiver->isDefaultArgument()) {
+        // this means that we have to add two null arguments to after the signal since there are no
+        // default arguments for the function pointer diconnect() overload
+        assert(p.slot->isDefaultArgument());
+        SourceLocation afterSignal = sourceLocationAfterStmt(p.signal, result.Context);
+        // TODO: allow nullptr/0/NULL/Q_NULLPTR
+        addReplacement(SourceRange(afterSignal, afterSignal), ", 0, 0", result.Context);
+    }
+    else if (p.slot->isDefaultArgument()) {
+        assert(!p.receiver->isDefaultArgument());
+        // similar but this time only one null arg and is inserted after receiver instead of after signal
+        SourceLocation afterReceiver = sourceLocationAfterStmt(p.receiver, result.Context);
+        // TODO: allow nullptr/0/NULL/Q_NULLPTR
+        addReplacement(SourceRange(afterReceiver, afterReceiver), ", 0", result.Context);
     }
     tryRemovingMembercallArg(p, result);
     convertedMatches++;
