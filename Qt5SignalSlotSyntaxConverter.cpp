@@ -387,21 +387,22 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         SourceRange replacementRange;
         std::string replacement;
         if (numArgs == 2) {
-            // disconnect(QObject* receiver, const char* method) ->  replace "receiver" with "sender, 0, receiver"
-            replacementRange = sourceRangeForStmt(p.receiver, result.Context);
+            // add "sender, 0, " before receiver
+            SourceLocation receiverStart = sourceLocationBeforeStmt(p.receiver, result.Context);
+            replacementRange = SourceRange(receiverStart, receiverStart);
             assert(!p.signal);
             assert(!p.receiver->isDefaultArgument()); // must be explicitly passed
             // TODO: customize nullptr
-            replacement = p.senderString + ", 0, " + expr2str(p.receiver, result.Context);
+            replacement = p.senderString + ", 0, ";
 
         }
         else if (numArgs == 3) {
-            // disconnect(const char* signal, QObject* receiver, const char* method) -> replace "signal" with "sender, signal"
+            // add "sender, " before signal
+            SourceLocation signalStart = sourceLocationBeforeStmt(p.signal, result.Context);
+            replacementRange = SourceRange(signalStart, signalStart);
             assert(p.signal);
-            replacementRange = sourceRangeForStmt(p.signal, result.Context);
-            // TODO: customize nullptr
-            const std::string signalString = p.signal->isDefaultArgument() ? "0" : expr2str(p.signal, result.Context);
-            replacement = p.senderString + ", " + signalString;
+            replacement = p.senderString + ", ";
+            assert(!p.signal->isDefaultArgument()); // we don't convert calls such as foo->disconnect()
         }
         else {
             throw std::logic_error("QObject::disconnect member function with neither 2 nor 3 args found!");
