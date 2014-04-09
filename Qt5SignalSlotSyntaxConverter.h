@@ -47,6 +47,8 @@ private:
     void convertDisconnect(Parameters& p, const MatchFinder::MatchResult& result);
     void matchFound(const Parameters& p, const MatchFinder::MatchResult& result);
     void addReplacement(clang::SourceRange range, const std::string& replacement, clang::ASTContext* ctx);
+    /** remove foo-> from foo->connect() after the conversion */
+    void tryRemovingMembercallArg(const Parameters& p, const MatchFinder::MatchResult& result);
 private:
     friend class ConnectConverter;
     std::atomic_int foundMatches;

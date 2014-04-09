@@ -283,6 +283,7 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral, p.receiverString);
     addReplacement(signalRange, signalReplacement, result.Context);
     addReplacement(slotRange, slotReplacement, result.Context);
+    tryRemovingMembercallArg(p, result);
     convertedMatches++;
 }
 
@@ -415,7 +416,25 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral, p.receiverString);
         addReplacement(slotRange, slotReplacement, result.Context);
     }
+    tryRemovingMembercallArg(p, result);
     convertedMatches++;
+}
+
+
+void ConnectCallMatcher::tryRemovingMembercallArg(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
+    if (!p.decl->isInstance()) {
+        return; // only makes sense with member calls
+    }
+    const CXXMemberCallExpr* membercall = cast<CXXMemberCallExpr>(p.call);
+    Expr* objArg = membercall->getImplicitObjectArgument();
+    if (objArg->isImplicitCXXThis()) {
+        return; // nothing to remove and we don't need QObject:: since this is a QObject subclass
+    }
+    std::string replacement;
+    // remove 2 more chars if pointer ("->"), or only one otherwise (".")
+    const int additionalCharsToRemove = objArg->getType()->isPointerType() ? 2 : 1;
+    SourceRange range = sourceRangeForStmt(objArg, result.Context, additionalCharsToRemove);
+    addReplacement(range, replacement, result.Context);
 }
 
 
