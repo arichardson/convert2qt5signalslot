@@ -55,6 +55,10 @@ int main() {
     myObject->disconnect(0, receiver); // and this
     myObject->disconnect(0, receiver, 0); // and this
 
+    //disconnect everything from myObject::objectNameChanged connected to receiver
+    QObject::disconnect(myObject, SIGNAL(objectNameChanged(QString)), receiver, 0);
+    myObject->disconnect(SIGNAL(objectNameChanged(QString)), receiver); // same as this
+
     // disconnect everything from myObject connected to receiver::deleteLater
     QObject::disconnect(myObject, 0, receiver, SLOT(deleteLater()));
     myObject->disconnect(receiver, SLOT(deleteLater())); // same as this
@@ -94,6 +98,10 @@ int main() {
     myObject->disconnect(0, receiver); // and this
     myObject->disconnect(0, receiver, 0); // and this
 
+    //disconnect everything from myObject::objectNameChanged connected to receiver
+    QObject::disconnect(myObject, &QObject::objectNameChanged, receiver, 0);
+    QObject::disconnect(myObject, &QObject::objectNameChanged, receiver, 0); // same as this
+
     // disconnect everything from myObject connected to receiver::deleteLater
     QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater);
     QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater); // same as this
@@ -106,5 +114,5 @@ int main() {
 )delim";
 
 int main() {
-    return testMain(input, output, 9, 9);
+    return testMain(input, output, 11, 11);
 }
