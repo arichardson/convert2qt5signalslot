@@ -74,18 +74,21 @@ static inline clang::SourceLocation sourceLocationAfterStmt(const clang::Stmt* s
     // i.e. in this case from qobjectdefs.h -> file that is refactored
     clang::Lexer::isAtEndOfMacroExpansion(endLoc, ctx->getSourceManager(), ctx->getLangOpts(), &endLoc);
 
-    // TODO: do we want to be just after the token, or is advancing by one character enough? Probably 1 char is fine
-    //return clang::Lexer::getLocForEndOfToken(stmt->getLocEnd(), offset, ctx->getSourceManager(), ctx->getLangOpts());
-    return endLoc.getLocWithOffset(1 + offset); // add one to the end location to point just past it
+    auto ret = clang::Lexer::getLocForEndOfToken(stmt->getLocEnd(), 0, ctx->getSourceManager(), ctx->getLangOpts());
+    return ret.getLocWithOffset(offset);
 }
 
-/** @return a SourceRange that contains the whole @p stmt, optionally adding/removing @p offset characters */
-static inline clang::SourceRange sourceRangeForStmt(const clang::Stmt* stmt, clang::ASTContext* ctx, int offset = 0) {
+static inline clang::SourceLocation sourceLocationBeforeStmt(const clang::Stmt* stmt, clang::ASTContext* ctx, int offset = 0) {
     clang::SourceLocation beginLoc = stmt->getLocStart();
     // if it is a macro expansion sets beginLoc to the location where the macro is being expanded, not where it is defined
     // i.e. in this case from qobjectdefs.h -> file that is refactored
     clang::Lexer::isAtStartOfMacroExpansion(beginLoc, ctx->getSourceManager(), ctx->getLangOpts(), &beginLoc);
-    return clang::SourceRange(beginLoc, sourceLocationAfterStmt(stmt, ctx, offset));
+    return beginLoc.getLocWithOffset(offset);
+}
+
+/** @return a SourceRange that contains the whole @p stmt, optionally adding/removing @p offset characters */
+static inline clang::SourceRange sourceRangeForStmt(const clang::Stmt* stmt, clang::ASTContext* ctx, int offset = 0) {
+    return clang::SourceRange(sourceLocationBeforeStmt(stmt, ctx), sourceLocationAfterStmt(stmt, ctx, offset));
 }
 
 #endif /* LLVMUTILS_H_ */
