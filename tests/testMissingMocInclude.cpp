@@ -26,14 +26,17 @@ int main() {
 
 )--";
 
+const char* mocCode = "struct moc {};";
+const char* mocCode2 = "#error moc code";
+
 int main() {
     std::string inBase(base);
     std::string outBase(baseOut);
-    int ret = testMainWithoutCompileCheck(inBase + test1, outBase + test1, 1, 1);
-    if (ret != 0)
-        return ret;
-    ret = testMainWithoutCompileCheck(inBase + test2, outBase + test2, 1, 1);
-    if (ret != 0)
-        return ret;
-    return testMainWithoutCompileCheck(inBase + test3, outBase + test3, 1, 1);
+    bool ok = codeCompiles(inBase + test1, {{BASE_DIR "foo.moc", mocCode}}) && codeCompiles(outBase + test1, {{BASE_DIR "foo.moc", mocCode}})
+            && testMainWithoutCompileCheck(inBase + test1, outBase + test1, 1, 1) == 0
+            && codeCompiles(inBase + test2, {{BASE_DIR "moc_foo.cpp", mocCode}}) && codeCompiles(outBase + test2, {{BASE_DIR "moc_foo.cpp", mocCode}})
+            && testMainWithoutCompileCheck(inBase + test2, outBase + test2, 1, 1) == 0
+            && codeCompiles(inBase + test3, {{BASE_DIR "foo_moc.cpp", mocCode}}) && codeCompiles(outBase + test3, {{BASE_DIR "foo_moc.cpp", mocCode}})
+            && testMainWithoutCompileCheck(inBase + test3, outBase + test3, 1, 1) == 0;
+    return ok ? 0 : 1;
 }

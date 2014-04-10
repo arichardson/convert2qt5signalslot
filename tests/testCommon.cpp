@@ -347,21 +347,24 @@ Q_SIGNALS:
 typedef std::vector<std::string> StringList;
 static const auto isNewline = [](char c) {return c == '\n';};
 
-static bool runTool(clang::FrontendAction *toolAction, const std::string code) {
+static bool runTool(clang::FrontendAction *toolAction, const std::string code, const AdditionalFiles& additionalFiles) {
     std::vector<std::string> commands { "clang-tool", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR, FILE_NAME };
     clang::FileSystemOptions opt;
     opt.WorkingDir = BASE_DIR;
     clang::FileManager* files = new clang::FileManager{ opt };
     ToolInvocation Invocation(commands, toolAction, files);
-    //for some reason free() is called on these strings, although StringRef should be non-owning
+    // this seems to be fixed in later clang versions: for some reason free() is called on these strings, although StringRef should be non-owning
     Invocation.mapVirtualFile(FILE_NAME, code);
     Invocation.mapVirtualFile(FAKE_QOBJECT_H_NAME, fakeQObjectCode);
+    for (auto file : additionalFiles) {
+        Invocation.mapVirtualFile(file.first, file.second);
+    }
     return Invocation.run();
 }
 
-static bool codeCompiles(const std::string& code) {
+bool codeCompiles(const std::string& code, const AdditionalFiles& additionalFiles) {
     auto action = new clang::SyntaxOnlyAction();
-    return runTool(action, code);
+    return runTool(action, code, additionalFiles);
 }
 
 int testMain(std::string input, std::string expected, int found, int converted) {
@@ -374,7 +377,7 @@ int testMain(std::string input, std::string expected, int found, int converted) 
         colouredOut(llvm::raw_ostream::RED) << "Failure: output code does not compile!\n";
         return 1;
     }
-    testMainWithoutCompileCheck(input, expected, found, converted);
+    return testMainWithoutCompileCheck(input, expected, found, converted);
 }
 
 int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted) {
@@ -387,7 +390,7 @@ int testMainWithoutCompileCheck(std::string input, std::string expected, int fou
     auto factory = newFrontendActionFactory(&matchFinder, converter.sourceCallback());
     auto action = factory->create();
 
-    bool success = runTool(action, input);
+    bool success = runTool(action, input, {});
     if (!success) {
         outs() << "Failed to run conversion!\n";
         return 1;
