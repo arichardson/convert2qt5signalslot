@@ -64,7 +64,7 @@ protected:
     }
 
     bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override {
-        llvm::errs() << "File not found: " << FileName << "\n";
+        // llvm::errs() << "File not found: " << FileName << "\n";
         if (FileName.endswith(".moc") || FileName.startswith("moc_") || FileName.endswith("_moc.cpp")) {
             if (!pp.GetSuppressIncludeNotFoundError()) {
                 pp.SetSuppressIncludeNotFoundError(true);
