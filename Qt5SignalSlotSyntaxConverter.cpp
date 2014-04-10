@@ -521,13 +521,13 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
         //overloaded signal/slot found -> we have to disambiguate
         searchInfo.parameters = signalSlotParameters(connectStr);
         result += "static_cast<void("; //TODO return type
-        result += type->getName();
+        result += type->getQualifiedNameAsString(); // TODO: only add the necessary namespace qualifiers
         result += "::*)(";
         result += searchInfo.parameters;
         result += ")>(";
     }
     result += '&';
-    result += type->getQualifiedNameAsString();
+    result += type->getQualifiedNameAsString(); // TODO: only add the necessary namespace qualifiers
     result += "::";
     result += searchInfo.methodName;
     if (resolveOverloads) {
