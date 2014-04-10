@@ -14,9 +14,10 @@
 using namespace clang::tooling;
 using llvm::outs;
 
-static const char* fakeQObjectCode =
-        R"delim(
+static const char* fakeQObjectCode = R"delim(
 
+#define NULL 0L
+#define Q_NULLPTR nullptr
 #define Q_OBJECT
 #define Q_SLOTS
 #define Q_SIGNALS public
@@ -347,8 +348,12 @@ Q_SIGNALS:
 typedef std::vector<std::string> StringList;
 static const auto isNewline = [](char c) {return c == '\n';};
 
-static bool runTool(clang::FrontendAction *toolAction, const std::string code, const AdditionalFiles& additionalFiles) {
-    std::vector<std::string> commands { "clang-tool", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR, FILE_NAME };
+static bool runTool(clang::FrontendAction *toolAction, const std::string code, const AdditionalFiles& additionalFiles, const std::vector<std::string>& extraOptions) {
+    std::vector<std::string> commands { "clang-tool", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR };
+    for (const auto& opt : extraOptions) {
+        commands.push_back(opt);
+    }
+    commands.push_back(FILE_NAME);
     clang::FileSystemOptions opt;
     opt.WorkingDir = BASE_DIR;
     clang::FileManager* files = new clang::FileManager{ opt };
@@ -362,12 +367,12 @@ static bool runTool(clang::FrontendAction *toolAction, const std::string code, c
     return Invocation.run();
 }
 
-bool codeCompiles(const std::string& code, const AdditionalFiles& additionalFiles) {
+bool codeCompiles(const std::string& code, const AdditionalFiles& additionalFiles, const std::vector<std::string>& extraOptions) {
     auto action = new clang::SyntaxOnlyAction();
-    return runTool(action, code, additionalFiles);
+    return runTool(action, code, additionalFiles, extraOptions);
 }
 
-int testMain(std::string input, std::string expected, int found, int converted) {
+int testMain(std::string input, std::string expected, int found, int converted, const std::vector<std::string>& extraOptions) {
 
     if (!codeCompiles(input)) {
         colouredOut(llvm::raw_ostream::RED) << "Failure: input code does not compile!\n";
@@ -377,10 +382,10 @@ int testMain(std::string input, std::string expected, int found, int converted) 
         colouredOut(llvm::raw_ostream::RED) << "Failure: output code does not compile!\n";
         return 1;
     }
-    return testMainWithoutCompileCheck(input, expected, found, converted);
+    return testMainWithoutCompileCheck(input, expected, found, converted, extraOptions);
 }
 
-int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted) {
+int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted, const std::vector<std::string>& extraOptions) {
     StringList refactoringFiles { FILE_NAME };
 
     MatchFinder matchFinder;
@@ -390,7 +395,7 @@ int testMainWithoutCompileCheck(std::string input, std::string expected, int fou
     auto factory = newFrontendActionFactory(&matchFinder, converter.sourceCallback());
     auto action = factory->create();
 
-    bool success = runTool(action, input, {});
+    bool success = runTool(action, input, {}, extraOptions);
     if (!success) {
         outs() << "Failed to run conversion!\n";
         return 1;
