@@ -45,7 +45,8 @@ protected:
             }
         }
     }
-    virtual void FileChanged(clang::SourceLocation loc, FileChangeReason reason, clang::SrcMgr::CharacteristicKind, clang::FileID prevFID) override {
+
+    void FileChanged(clang::SourceLocation loc, FileChangeReason reason, clang::SrcMgr::CharacteristicKind, clang::FileID prevFID) override {
         clang::PresumedLoc presumedLoc = pp.getSourceManager().getPresumedLoc(loc, false);
         //llvm::outs() << "File changed: name=" << presumedLoc.getFilename() << ", reason=" << reason << "\n";
         if (!initialized) {
@@ -61,4 +62,22 @@ protected:
             }
         }
     }
+
+    bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override {
+        llvm::errs() << "File not found: " << FileName << "\n";
+        if (FileName.endswith(".moc") || FileName.startswith("moc_") || FileName.endswith("_moc.cpp")) {
+            if (!pp.GetSuppressIncludeNotFoundError()) {
+                pp.SetSuppressIncludeNotFoundError(true);
+            }
+        } else {
+            if (pp.GetSuppressIncludeNotFoundError()) {
+                pp.SetSuppressIncludeNotFoundError(false);
+            }
+        }
+        return false;
+    }
+
+//    void InclusionDirective(clang::SourceLocation, const clang::Token&, llvm::StringRef FileName, bool, clang::CharSourceRange, const clang::FileEntry*, llvm::StringRef, llvm::StringRef, const clang::Module*) override {
+//        llvm::errs() << "InclusionDirective: " << FileName << "\n";
+//    }
 };
