@@ -30,7 +30,11 @@ using llvm::outs;
 using llvm::errs;
 
 static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
-static llvm::cl::opt<bool> verboseMode("verbose", llvm::cl::cat(clCategory), llvm::cl::desc("Enable verbose output"));
+static llvm::cl::opt<bool> verboseMode("verbose", llvm::cl::cat(clCategory),
+        llvm::cl::desc("Enable verbose output"));
+// no static so that it can be modified by the tests
+llvm::cl::opt<std::string> nullPtrString("nullptr", llvm::cl::init("nullptr"), llvm::cl::cat(clCategory),
+        llvm::cl::desc("the string that will be used for a null pointer constant (Default is 'nullptr')"));
 static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clCategory), llvm::cl::ZeroOrMore,
         llvm::cl::desc("signals/slots with this prefix will be skipped (useful for Q_PRIVATE_SLOTS). May be passed multiple times.") );
 
@@ -379,8 +383,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
             replacementRange = SourceRange(receiverStart, receiverStart);
             assert(!p.signal);
             assert(!p.receiver->isDefaultArgument()); // must be explicitly passed
-            // TODO: customize nullptr
-            replacement = p.senderString + ", 0, ";
+            replacement = p.senderString + ", " + nullPtrString + ", ";
 
         }
         else if (numArgs == 3) {
@@ -408,15 +411,13 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         // default arguments for the function pointer diconnect() overload
         assert(p.slot->isDefaultArgument());
         SourceLocation afterSignal = sourceLocationAfterStmt(p.signal, result.Context);
-        // TODO: allow nullptr/0/NULL/Q_NULLPTR
-        addReplacement(SourceRange(afterSignal, afterSignal), ", 0, 0", result.Context);
+        addReplacement(SourceRange(afterSignal, afterSignal), ", " + nullPtrString + ", " + nullPtrString, result.Context);
     }
     else if (p.slot->isDefaultArgument()) {
         assert(!p.receiver->isDefaultArgument());
         // similar but this time only one null arg and is inserted after receiver instead of after signal
         SourceLocation afterReceiver = sourceLocationAfterStmt(p.receiver, result.Context);
-        // TODO: allow nullptr/0/NULL/Q_NULLPTR
-        addReplacement(SourceRange(afterReceiver, afterReceiver), ", 0", result.Context);
+        addReplacement(SourceRange(afterReceiver, afterReceiver), ", " + nullPtrString, result.Context);
     }
     tryRemovingMembercallArg(p, result);
     convertedMatches++;

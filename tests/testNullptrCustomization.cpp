@@ -1,6 +1,8 @@
 #include "testCommon.h"
 #include "testDisconnect.h"
 
+#include <llvm/Support/CommandLine.h>
+
 
 static const char* disconnectOutputNULL = R"delim(
 #include <qobjectdefs.h>
@@ -125,10 +127,19 @@ int main() {
 }
 )delim";
 
+extern llvm::cl::opt<std::string> nullPtrString;
+
 int main() {
-    bool ok = testMain(disconnectInput, disconnectOutputNullptr, 11, 11) == 0
-            && testMain(disconnectInput, disconnectOutputNULL, 11, 11) == 0
-            && testMain(disconnectInput, disconnectOutput0, 11, 11) == 0
-            && testMain(disconnectInput, disconnectOutputQ_NULLPTR, 11, 11) == 0;
-    return ok ? 0 : 1;
+    if (testMain(disconnectInput, disconnectOutputNullptr, 11, 11) != 0)
+        return 1;
+    nullPtrString = "NULL";
+    if (testMain(disconnectInput, disconnectOutputNULL, 11, 11) != 0)
+        return 1;
+    nullPtrString = "0";
+    if (testMain(disconnectInput, disconnectOutput0, 11, 11) != 0)
+        return 1;
+    nullPtrString = "Q_NULLPTR";
+    if (testMain(disconnectInput, disconnectOutputQ_NULLPTR, 11, 11) != 0)
+        return 1;
+    return 0;
 }

@@ -349,7 +349,7 @@ typedef std::vector<std::string> StringList;
 static const auto isNewline = [](char c) {return c == '\n';};
 
 static bool runTool(clang::FrontendAction *toolAction, const std::string code, const AdditionalFiles& additionalFiles, const std::vector<std::string>& extraOptions) {
-    std::vector<std::string> commands { "clang-tool", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR };
+    std::vector<std::string> commands { "clang", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR };
     for (const auto& opt : extraOptions) {
         commands.push_back(opt);
     }
@@ -372,7 +372,7 @@ bool codeCompiles(const std::string& code, const AdditionalFiles& additionalFile
     return runTool(action, code, additionalFiles, extraOptions);
 }
 
-int testMain(std::string input, std::string expected, int found, int converted, const std::vector<std::string>& extraOptions) {
+int testMain(std::string input, std::string expected, int found, int converted, const std::vector<const char*>& converterOptions) {
 
     if (!codeCompiles(input)) {
         colouredOut(llvm::raw_ostream::RED) << "Failure: input code does not compile!\n";
@@ -382,12 +382,11 @@ int testMain(std::string input, std::string expected, int found, int converted, 
         colouredOut(llvm::raw_ostream::RED) << "Failure: output code does not compile!\n";
         return 1;
     }
-    return testMainWithoutCompileCheck(input, expected, found, converted, extraOptions);
+    return testMainWithoutCompileCheck(input, expected, found, converted, converterOptions);
 }
 
-int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted, const std::vector<std::string>& extraOptions) {
+int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted, const std::vector<const char*>& converterOptions) {
     StringList refactoringFiles { FILE_NAME };
-
     MatchFinder matchFinder;
     Replacements replacements;
     ConnectConverter converter(&replacements, refactoringFiles);
@@ -395,7 +394,7 @@ int testMainWithoutCompileCheck(std::string input, std::string expected, int fou
     auto factory = newFrontendActionFactory(&matchFinder, converter.sourceCallback());
     auto action = factory->create();
 
-    bool success = runTool(action, input, {}, extraOptions);
+    bool success = runTool(action, input, {}, {});
     if (!success) {
         outs() << "Failed to run conversion!\n";
         return 1;

@@ -13,7 +13,7 @@ typedef std::map<std::string, std::string> AdditionalFiles;
 
 bool codeCompiles(const std::string& code, const AdditionalFiles& additionalFiles = {}, const std::vector<std::string>& extraOptions = {});
 
-int testMain(std::string input, std::string expected, int found, int converted, const std::vector<std::string>& extraOptions = {});
+int testMain(std::string input, std::string expected, int found, int converted, const std::vector<const char*>& converterOptions = {});
 
-int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted, const std::vector<std::string>& extraOptions = {});
+int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted, const std::vector<const char*>& converterOptions = {});
 
