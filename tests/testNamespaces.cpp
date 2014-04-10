@@ -1,6 +1,6 @@
 #include "testCommon.h"
 
-static const char* input = R"delim(
+static const char* commonCode = R"delim(
 #include <qobjectdefs.h>
 
 namespace NS1 {
@@ -8,6 +8,9 @@ class Foo1  : public QObject {
     Q_OBJECT
 public:
     void someSlot() {}
+    // to make sure that the static_cast also qualifies members
+    void overloaded(const QString&) {}
+    void overloaded() {}
 };
 }
 
@@ -44,6 +47,9 @@ private:
     NS3::Foo3* foo3;
 };
 
+)delim";
+
+static const char* input = R"delim(
 void Test::localUsingDirectives() {
     connect(this, SIGNAL(objectNameChanged(QString)), foo1, SLOT(someSlot()));
     connect(this, SIGNAL(objectNameChanged(QString)), foo2, SLOT(someSlot()));
@@ -55,6 +61,12 @@ void Test::localUsingDirectives() {
     connect(this, SIGNAL(objectNameChanged(QString)), foo2, SLOT(someSlot()));
     //however NS2::Bar2 does
     connect(this, SIGNAL(objectNameChanged(QString)), bar2, SLOT(someSlot()));
+
+    //test overloads
+    connect(this, SIGNAL(objectNameChanged(QString)), foo1, SLOT(overloaded()));
+    connect(this, SIGNAL(objectNameChanged(QString)), foo1, SLOT(overloaded(const QString&)));
+    using namespace NS1;
+    connect(this, SIGNAL(objectNameChanged(QString)), foo1, SLOT(overloaded(const QString&)));
 }
 
 using namespace NS3;
@@ -70,49 +82,6 @@ void Test::globalUsingDirectives() {
 )delim";
 
 static const char* output = R"delim(
-#include <qobjectdefs.h>
-
-namespace NS1 {
-class Foo1  : public QObject {
-    Q_OBJECT
-public:
-    void someSlot() {}
-};
-}
-
-namespace NS2 {
-class Foo2 : public QObject {
-    Q_OBJECT
-public:
-    void someSlot() {}
-};
-class Bar2 : public QObject {
-    Q_OBJECT
-public:
-    void someSlot() {}
-};
-}
-
-namespace NS3 {
-class Foo3 : public QObject {
-    Q_OBJECT
-public:
-    void someSlot() {}
-};
-}
-
-class Test : public QObject {
-    Q_OBJECT
-public:
-    void globalUsingDirectives();
-    void localUsingDirectives();
-private:
-    NS1::Foo1* foo1;
-    NS2::Foo2* foo2;
-    NS2::Bar2* bar2;
-    NS3::Foo3* foo3;
-};
-
 void Test::localUsingDirectives() {
     connect(this, &Test::objectNameChanged, foo1, &NS1::Foo1::someSlot);
     connect(this, &Test::objectNameChanged, foo2, &NS2::Foo2::someSlot);
@@ -124,6 +93,12 @@ void Test::localUsingDirectives() {
     connect(this, &Test::objectNameChanged, foo2, &Foo2::someSlot);
     //however NS2::Bar2 does
     connect(this, &Test::objectNameChanged, bar2, &NS2::Bar2::someSlot);
+
+    //test overloads
+    connect(this, &Test::objectNameChanged, foo1, static_cast<void(NS1::Foo1::*)()>(&NS1::Foo1::overloaded));
+    connect(this, &Test::objectNameChanged, foo1, static_cast<void(NS1::Foo1::*)(const QString&)>(&NS1::Foo1::overloaded));
+    using namespace NS1;
+    connect(this, &Test::objectNameChanged, foo1, static_cast<void(Foo1::*)(const QString&)>(&Foo1::overloaded));
 }
 
 using namespace NS3;
@@ -139,6 +114,7 @@ void Test::globalUsingDirectives() {
 )delim";
 
 int main() {
-    return testMain(input, output, 10, 10);
+    std::string common(commonCode);
+    return testMain(common + input, common + output, 13, 13);
 }
 
