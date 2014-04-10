@@ -35,7 +35,7 @@ struct QMetaObject {
     struct Connection {};
 };
 
-class QString;
+class QString {};
 
 struct QMetaMethod {};
 
