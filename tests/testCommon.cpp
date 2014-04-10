@@ -365,8 +365,6 @@ static bool codeCompiles(const std::string& code) {
 }
 
 int testMain(std::string input, std::string expected, int found, int converted) {
-    llvm::sys::PrintStackTraceOnErrorSignal();
-    StringList refactoringFiles { FILE_NAME };
 
     if (!codeCompiles(input)) {
         colouredOut(llvm::raw_ostream::RED) << "Failure: input code does not compile!\n";
@@ -376,6 +374,11 @@ int testMain(std::string input, std::string expected, int found, int converted) 
         colouredOut(llvm::raw_ostream::RED) << "Failure: output code does not compile!\n";
         return 1;
     }
+    testMainWithoutCompileCheck(input, expected, found, converted);
+}
+
+int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted) {
+    StringList refactoringFiles { FILE_NAME };
 
     MatchFinder matchFinder;
     Replacements replacements;

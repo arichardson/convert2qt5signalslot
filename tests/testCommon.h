@@ -9,3 +9,5 @@
 
 int testMain(std::string input, std::string expected, int found, int converted);
 
+int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted);
+
