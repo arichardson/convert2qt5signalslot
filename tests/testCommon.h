@@ -4,10 +4,14 @@
 #include <map>
 #include <vector>
 
+#include "config-tests.h"
+
 #define BASE_DIR "/the/path/to/be/refactored/"
 #define FILE_NAME BASE_DIR "input.cpp"
 #define INCLUDE_DIR "/fake/system/include/path/"
-#define FAKE_QOBJECT_H_NAME INCLUDE_DIR "qobjectdefs.h"
+
+
+std::string readFile(const std::string& name);
 
 typedef std::map<std::string, std::string> AdditionalFiles;
 

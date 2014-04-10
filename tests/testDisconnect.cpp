@@ -1,5 +1,4 @@
 #include "testCommon.h"
-#include "testDisconnect.h"
 
 /** from the Qt docs:
 
@@ -27,9 +26,9 @@ equivalent to the non-static overloaded function
 
     myObject->disconnect(myReceiver);
 
-
  */
 
 int main() {
-    return testMain(disconnectInput, disconnectOutputNullptr, 11, 11);
+    return testMain(readFile(TEST_SOURCE_DIR "/input/disconnect.cpp"),
+            readFile(TEST_SOURCE_DIR "/refactored/disconnect.cpp"), 11, 11);
 }

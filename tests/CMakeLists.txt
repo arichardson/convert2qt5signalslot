@@ -1,6 +1,9 @@
 find_package(Boost)
-
+find_package(Qt5Core CONFIG REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
+
+set(TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+configure_file(config-tests.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-tests.h @ONLY)
 
 add_library(testCommonObjs OBJECT testCommon.cpp) #only compile once, not for every test
 
