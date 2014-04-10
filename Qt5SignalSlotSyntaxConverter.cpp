@@ -32,7 +32,7 @@ using llvm::errs;
 static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
 static llvm::cl::opt<bool> verboseMode("verbose", llvm::cl::cat(clCategory),
         llvm::cl::desc("Enable verbose output"));
-// no static so that it can be modified by the tests
+// not static so that it can be modified by the tests
 llvm::cl::opt<std::string> nullPtrString("nullptr", llvm::cl::init("nullptr"), llvm::cl::cat(clCategory),
         llvm::cl::desc("the string that will be used for a null pointer constant (Default is 'nullptr')"));
 static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clCategory), llvm::cl::ZeroOrMore,
