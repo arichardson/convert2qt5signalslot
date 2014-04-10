@@ -77,3 +77,5 @@ void Test::globalUsingDirectives() {
 int main() {
     return 0;
 }
+
+#include "namespaces.moc"

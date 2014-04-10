@@ -1,4 +1,5 @@
 #include "testCommon.h"
+#include <llvm/Support/raw_ostream.h>
 
 /** from the Qt docs:
 
@@ -29,6 +30,11 @@ equivalent to the non-static overloaded function
  */
 
 int main() {
+    if (!codeCompiles(readFile(TEST_SOURCE_DIR "/input/disconnect.cpp"))
+            || !codeCompiles(readFile(TEST_SOURCE_DIR "/refactored/disconnect.cpp"))) {
+        llvm::errs() << "Error : code does not compile!";
+        return 1;
+    }
     return testMain(readFile(TEST_SOURCE_DIR "/input/disconnect.cpp"),
             readFile(TEST_SOURCE_DIR "/refactored/disconnect.cpp"), 11, 11);
 }

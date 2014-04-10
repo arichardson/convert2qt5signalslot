@@ -5,11 +5,12 @@ class Test : public QObject {
 public:
     Test();
 private:
-    QObject* someObj();
+    QObject* someObj() { return q; }
     QObject* q;
 };
 
 Test::Test() {
+    q = new QObject(this);
     // inside QObject subclass -> don't have to prefix with QObject::
 
     // here connect receiver/disconnect sender is "this"
@@ -55,3 +56,5 @@ int main() {
     obj->disconnect(SIGNAL(objectNameChanged(QString)), test, SLOT(deleteLater()));
     return 0;
 }
+
+#include "membercall.moc"

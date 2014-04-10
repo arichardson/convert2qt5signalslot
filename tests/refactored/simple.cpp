@@ -34,3 +34,5 @@ int main() {
     Test test;
     return 0;
 }
+
+#include "simple.moc"

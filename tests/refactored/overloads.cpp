@@ -3,7 +3,7 @@
 class Base : public QObject {
     Q_OBJECT
 public:
-    Base();
+    Base() = default;
 Q_SIGNALS:
     void sig_int(int); //nothing special, used when testing slots
     void sig_ccp(const char*); //nothing special, used when testing slots
@@ -13,28 +13,29 @@ Q_SIGNALS:
     void overloadedSig(const char*);
     void sigOverloadedDerived();
 public Q_SLOTS:
-    void slot(); //nothing special, used when testing signals
+    void slot() {} //nothing special, used when testing signals
 
-    virtual void slotOverride(int);
-    virtual void slotOverloadedVirtual();
-    void slotOverloadedDerived(int); // now the same just not virtual
-    void slotHide(const char*);
+    virtual void slotOverride(int) {}
+    virtual void slotOverloadedVirtual() {}
+    void slotOverloadedDerived(int) {} // now the same just not virtual
+    void slotHide(const char*) {}
 };
 
 class Derived : public Base {
     Q_OBJECT
 public:
-    Derived();
-Q_SIGNALS:
+    Derived() = default;
+    // must be outside Q_SIGNALS/Q_SLOTS, otherwise moc fails
     using Base::sigOverloadedDerived; // This is needed so that connection works with &Derived::slotOverloadedDerived
+    using Base::slotOverloadedVirtual; // This is needed so that connection works with &Derived::slotOverloadedVirtual + silences warning
+    using Base::slotOverloadedDerived; // This is needed so that connection works with &Derived::slotOverloadedDerived
+Q_SIGNALS:
     void sigOverloadedDerived(int);
 public Q_SLOTS:
-    virtual void slotOverride(int) override;
-    using Base::slotOverloadedVirtual; // silence warning
-    virtual void slotOverloadedVirtual(int);
-    using Base::slotOverloadedDerived; // This is needed so that connection works with &Derived::slotOverloadedDerived
-    void slotOverloadedDerived(const char*);
-    void slotHide(const char*);
+    virtual void slotOverride(int) override {}
+    virtual void slotOverloadedVirtual(int) {}
+    void slotOverloadedDerived(const char*) {}
+    void slotHide(const char*) {}
 };
 
 int main() {
@@ -70,3 +71,5 @@ int main() {
     QObject::connect(base, &Base::sig_ccp, derived, &Derived::slotHide);
     return 0;
 }
+
+#include "overloads.moc"

@@ -63,19 +63,6 @@ bool codeCompiles(const std::string& code, const AdditionalFiles& additionalFile
 }
 
 int testMain(std::string input, std::string expected, int found, int converted, const std::vector<const char*>& converterOptions) {
-
-    if (!codeCompiles(input)) {
-        colouredOut(llvm::raw_ostream::RED) << "Failure: input code does not compile!\n";
-        return 1;
-    }
-    if (!codeCompiles(expected)) {
-        colouredOut(llvm::raw_ostream::RED) << "Failure: output code does not compile!\n";
-        return 1;
-    }
-    return testMainWithoutCompileCheck(input, expected, found, converted, converterOptions);
-}
-
-int testMainWithoutCompileCheck(std::string input, std::string expected, int found, int converted, const std::vector<const char*>& converterOptions) {
     StringList refactoringFiles { FILE_NAME };
     MatchFinder matchFinder;
     Replacements replacements;
