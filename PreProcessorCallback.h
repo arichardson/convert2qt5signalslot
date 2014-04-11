@@ -1,6 +1,6 @@
 #pragma once
 
-#include "llvmutils.h"
+#include "ClangUtils.h"
 #include <clang/Lex/Preprocessor.h>
 
 static const char* Q_PRIVATE_SLOT_definition =

@@ -1,6 +1,6 @@
 #include "Qt5SignalSlotSyntaxConverter.h"
 #include "PreProcessorCallback.h"
-#include "llvmutils.h"
+#include "ClangUtils.h"
 
 #include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/Basic/SourceManager.h>

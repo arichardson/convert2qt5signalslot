@@ -1,5 +1,5 @@
-#ifndef LLVMUTILS_H_
-#define LLVMUTILS_H_
+#ifndef CLANGUTILS_H_
+#define CLANGUTILS_H_
 
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/StringRef.h>
@@ -113,4 +113,4 @@ static inline bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* nam
     return false;
 }
 
-#endif /* LLVMUTILS_H_ */
+#endif /* CLANGUTILS_H_ */

@@ -2,7 +2,7 @@
 #include "fake_qobjectdefs.h"
 
 #include "../Qt5SignalSlotSyntaxConverter.h"
-#include "../llvmutils.h"
+#include "../ClangUtils.h"
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Rewrite/Frontend/FixItRewriter.h>
 #include <clang/Basic/FileSystemOptions.h>
