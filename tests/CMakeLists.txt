@@ -9,7 +9,7 @@ add_library(testCommonObjs OBJECT testCommon.cpp) #only compile once, not for ev
 
 function(converter_unit_test _name)
   add_executable(test-${_name} test${_name}.cpp $<TARGET_OBJECTS:testCommonObjs> $<TARGET_OBJECTS:converterObjs>)
-  target_link_libraries(test-${_name} ${CLANG_LIBS} ${LLVM_LIBS_CORE} pthread)
+  target_link_libraries(test-${_name} ${REQUIRED_CLANG_LIBS} ${REQUIRED_LLVM_LIBS})
   add_test(NAME ${_name}-cxx COMMAND test-${_name})
 endfunction()
 
