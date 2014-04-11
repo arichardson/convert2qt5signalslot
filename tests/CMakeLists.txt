@@ -15,7 +15,7 @@ endfunction()
 
 converter_unit_test(Simple)
 converter_unit_test(Overloads)
-converter_unit_test(Namespaces)
+converter_unit_test(Scoping)
 converter_unit_test(Membercall)
 converter_unit_test(Disconnect)
 converter_unit_test(MissingMocInclude)
@@ -33,7 +33,7 @@ endfunction()
 
 build_old_and_new(simple)
 build_old_and_new(membercall)
-build_old_and_new(namespaces)
+build_old_and_new(scoping)
 build_old_and_new(overloads)
 # This one does not work, there is no signal = nullptr overload for QObject::disconnect
 #build_old_and_new(disconnect)
