@@ -11,6 +11,7 @@
 #include <clang/Lex/Lexer.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Sema/Sema.h>
+#include <clang/Sema/Scope.h>
 #include <clang/Sema/Lookup.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <llvm/Support/CommandLine.h>
@@ -31,7 +32,7 @@ using llvm::errs;
 
 static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
 static llvm::cl::opt<bool> verboseMode("verbose", llvm::cl::cat(clCategory),
-        llvm::cl::desc("Enable verbose output"), llvm::cl::init(true));
+        llvm::cl::desc("Enable verbose output"), llvm::cl::init(false));
 // not static so that it can be modified by the tests
 llvm::cl::opt<std::string> nullPtrString("nullptr", llvm::cl::init("nullptr"), llvm::cl::cat(clCategory),
         llvm::cl::desc("the string that will be used for a null pointer constant (Default is 'nullptr')"));
@@ -283,8 +284,10 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
     const CXXRecordDecl* receiverTypeDecl = p.receiver->getBestDynamicClassType();
 
-    const std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral, p.senderString);
-    const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral, p.receiverString);
+    const std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral,
+            p.senderString, sourceLocationBeforeStmt(p.call, result.Context));
+    const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral,
+            p.receiverString, sourceLocationBeforeStmt(p.call, result.Context));
     addReplacement(signalRange, signalReplacement, result.Context);
     addReplacement(slotRange, slotReplacement, result.Context);
     tryRemovingMembercallArg(p, result);
@@ -362,7 +365,8 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
     if (p.signalLiteral) {
         SourceRange signalRange = sourceRangeForStmt(p.signal, result.Context);
         const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
-        std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral, p.senderString);
+        std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral,
+                p.senderString, sourceLocationBeforeStmt(p.call, result.Context));
         addReplacement(signalRange, signalReplacement, result.Context);
     }
     else if (p.decl->isInstance()) {
@@ -402,7 +406,8 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
     if (p.slotLiteral) {
         SourceRange slotRange = sourceRangeForStmt(p.slot, result.Context);
         const CXXRecordDecl* receiverTypeDecl = p.receiver->getBestDynamicClassType();
-        const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral, p.receiverString);
+        const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral,
+                p.receiverString, sourceLocationBeforeStmt(p.call, result.Context));
         addReplacement(slotRange, slotReplacement, result.Context);
     }
     // add the default arguments
@@ -453,90 +458,94 @@ void ConnectCallMatcher::tryRemovingMembercallArg(const ConnectCallMatcher::Para
 
 
 std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* type,
-        const StringLiteral* connectStr, const std::string& prepend) {
-    //context->dumpDeclContext();
-//    outs() << "\n\n\n lookups:\n";
-//    type->dumpLookups(outs());
-//    outs() << "\n\n\n lookups primary:\n";
-//    type->getPrimaryContext()->dumpLookups(outs());
-    struct SearchInfo {
-        std::vector<CXXMethodDecl*> results;
-        StringRef methodName;
-        DeclarationName lookupName;
-        StringRef parameters;
-        clang::Sema* sema;
-    } searchInfo;
-    searchInfo.methodName = signalSlotName(connectStr);
-    searchInfo.lookupName = pp->getIdentifierInfo(searchInfo.methodName);
-    searchInfo.sema = sema;
+        const StringLiteral* connectStr, const std::string& prepend, SourceLocation lookupLocation) {
+
+    StringRef methodName = signalSlotName(connectStr);
+    // TODO: handle Q_PRIVATE_SLOTS
     for (const auto& prefix : skipPrefixes) {
-        if (searchInfo.methodName.startswith(prefix)) {
+        if (methodName.startswith(prefix)) {
             //e.g. in KDE all private slots start with _k_
             //I don't know how to convert Q_PRIVATE_SLOTS, so allow an easy way of skipping them
-            throw SkipMatchException(("'" + searchInfo.methodName + "' starts with '" + prefix + "'").str());
+            throw SkipMatchException(("'" + methodName + "' starts with '" + prefix + "'").str());
         }
     }
-    auto searchLambda = [](const CXXRecordDecl* cls, void *userData) {
-        auto info = static_cast<SearchInfo*>(userData);
-        outs() << "Looking up " << info->methodName << " in " << cls->getQualifiedNameAsString() << "\n";
-        auto lookupResult = cls->getPrimaryContext()->lookup(info->lookupName);
+    DeclarationName lookupName(pp->getIdentifierInfo(methodName));
 
-        for (NamedDecl* decl : lookupResult) {
-            auto method = dyn_cast<CXXMethodDecl>(decl);
-            if (!method) {
-                outs() << "lookup result is not a method decl: " << decl->getQualifiedNameAsString() << "\b";
-                continue;
-            }
-            bool overload = true;
-            for (auto func : info->results) {
-                if (!info->sema->IsOverload(method, func, false)) {
-                    overload = false;
-                    break;
-                }
-            }
-            if (verboseMode && !info->results.empty()) {
-                outs() << method->getQualifiedNameAsString() << " is an overload of " << info->results[0]->getQualifiedNameAsString() << " = " << overload << "\n";
-            }
-            if (overload) {
-                if (verboseMode) {
-                    outs() << "Found match: " << method->getQualifiedNameAsString() << ": "
-                            << method->getType().getAsString() << "\n";
-                }
-                info->results.push_back(method);
-            }
+
+    // this doesn't work
+    // TODO: how to get a scope for lookup
+    //Scope* scope = sema->getScopeForContext();
+
+
+    //outs() << "Looking up " << methodName << " in " << type->getQualifiedNameAsString() << "\n";
+    LookupResult lookup(*sema, lookupName, lookupLocation, Sema::LookupMemberName);
+    // setting inUnqualifiedLookup to true makes sure that base classes are searched too
+    sema->LookupQualifiedName(lookup, const_cast<DeclContext*>(type->getPrimaryContext()), true);
+    //outs() << "lr after lookup: ";
+    //lookup.print(outs());
+    const uint numFound = [&]() -> uint {
+        if (lookup.isSingleResult()) {
+            //NamedDecl* result = lookup.getFoundDecl();
+            //outs() << "SINGLE RESULT!\n";
+            return 1;
         }
-        return true;
-    };
-    searchLambda(type, &searchInfo); //search baseClass
-    type->forallBases(searchLambda, &searchInfo, false); //now find in base classes
+        else if (lookup.isOverloadedResult()) {
+            //outs() << "OVERLOADED!\n";
+            uint i = 0;
+            for (NamedDecl* decl : lookup) {
+                //outs() << decl->getQualifiedNameAsString() << ": " << decl->getDeclKindName() << "\n";
+                (void)decl;
+                i++;
+            }
+            return i;
+        }
+        else if (lookup.isAmbiguous()) {
+            //outs() << "AMBIGUOUS!\n";
+            uint i = 0;
+            for (NamedDecl* decl : lookup) {
+                //outs() << decl->getQualifiedNameAsString() << ": " << decl->getDeclKindName() << "\n";
+                (void)decl;
+                i++;
+            }
+            return i;
+        }
+        else if (lookup.empty()) {
+            //TODO warning
+            //outs() << "NOT FOUND!\n";
+            return 0;
+        }
+        else {
+            //TODO warning
+            //outs() << "SOME OTHER CASE!\n";
+            return 0;
+        }
+    }();
 
     if (verboseMode) {
-        outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << searchInfo.methodName << ": " << searchInfo.results.size() << " results\n";
+        outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << methodName << ": " << numFound << " results\n";
     }
     SmallString<128> result;
     if (!prepend.empty()) {
         result = prepend + ", ";
     }
-    //TODO abort if none found
-    const bool resolveOverloads = searchInfo.results.size() > 1;
-    if (resolveOverloads) {
+    if (numFound > 1) {
         if (verboseMode) {
-            outs() << type->getName() << "::" << searchInfo.methodName << " is a overloaded signal/slot. Found "
-                    << searchInfo.results.size() << " overloads.\n";
+            outs() << type->getName() << "::" << methodName << " is a overloaded signal/slot. Found "
+                    << numFound << " overloads.\n";
         }
         //overloaded signal/slot found -> we have to disambiguate
-        searchInfo.parameters = signalSlotParameters(connectStr);
+        StringRef parameters = signalSlotParameters(connectStr); // TODO suggest correct parameters
         result += "static_cast<void("; //TODO return type
         result += type->getQualifiedNameAsString(); // TODO: only add the necessary namespace qualifiers
         result += "::*)(";
-        result += searchInfo.parameters;
+        result += parameters;
         result += ")>(";
     }
     result += '&';
     result += type->getQualifiedNameAsString(); // TODO: only add the necessary namespace qualifiers
     result += "::";
-    result += searchInfo.methodName;
-    if (resolveOverloads) {
+    result += methodName;
+    if (numFound > 1) {
         result += ')';
     }
     return result.str();

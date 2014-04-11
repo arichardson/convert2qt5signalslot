@@ -2,6 +2,7 @@
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
 #include <clang/ASTMatchers/ASTMatchFinder.h>
+#include <clang/Basic/SourceLocation.h>
 #include <clang/Tooling/Refactoring.h>
 
 namespace clang {
@@ -22,11 +23,6 @@ public:
     bool handleBeginSource(clang::CompilerInstance &CI, llvm::StringRef Filename) override;
     void handleEndSource() override;
 
-    /**
-     * @return The new signal/slot expression for the connect call
-     */
-    std::string calculateReplacementStr(const clang::CXXRecordDecl* type,
-            const clang::StringLiteral* connectStr, const std::string& prepend);
     void printStats() const;
     struct Parameters {
         const clang::CallExpr* call = nullptr;
@@ -49,6 +45,11 @@ private:
     void addReplacement(clang::SourceRange range, const std::string& replacement, clang::ASTContext* ctx);
     /** remove foo-> from foo->connect() after the conversion */
     void tryRemovingMembercallArg(const Parameters& p, const MatchFinder::MatchResult& result);
+    /**
+     * @return The new signal/slot expression for the connect call
+     */
+    std::string calculateReplacementStr(const clang::CXXRecordDecl* type,
+            const clang::StringLiteral* connectStr, const std::string& prepend, clang::SourceLocation lookupLocation);
 private:
     friend class ConnectConverter;
     std::atomic_int foundMatches;
