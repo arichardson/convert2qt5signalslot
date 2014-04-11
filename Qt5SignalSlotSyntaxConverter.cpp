@@ -31,7 +31,7 @@ using llvm::errs;
 
 static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
 static llvm::cl::opt<bool> verboseMode("verbose", llvm::cl::cat(clCategory),
-        llvm::cl::desc("Enable verbose output"));
+        llvm::cl::desc("Enable verbose output"), llvm::cl::init(true));
 // not static so that it can be modified by the tests
 llvm::cl::opt<std::string> nullPtrString("nullptr", llvm::cl::init("nullptr"), llvm::cl::cat(clCategory),
         llvm::cl::desc("the string that will be used for a null pointer constant (Default is 'nullptr')"));
@@ -454,13 +454,20 @@ void ConnectCallMatcher::tryRemovingMembercallArg(const ConnectCallMatcher::Para
 
 std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* type,
         const StringLiteral* connectStr, const std::string& prepend) {
+    //context->dumpDeclContext();
+//    outs() << "\n\n\n lookups:\n";
+//    type->dumpLookups(outs());
+//    outs() << "\n\n\n lookups primary:\n";
+//    type->getPrimaryContext()->dumpLookups(outs());
     struct SearchInfo {
         std::vector<CXXMethodDecl*> results;
         StringRef methodName;
+        DeclarationName lookupName;
         StringRef parameters;
         clang::Sema* sema;
     } searchInfo;
     searchInfo.methodName = signalSlotName(connectStr);
+    searchInfo.lookupName = pp->getIdentifierInfo(searchInfo.methodName);
     searchInfo.sema = sema;
     for (const auto& prefix : skipPrefixes) {
         if (searchInfo.methodName.startswith(prefix)) {
@@ -471,40 +478,38 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     }
     auto searchLambda = [](const CXXRecordDecl* cls, void *userData) {
         auto info = static_cast<SearchInfo*>(userData);
-        for (auto it = cls->method_begin(); it != cls->method_end(); ++it) {
-            if (!it->getIdentifier()) {
-                //is not a normal C++ method, maybe constructor or destructor
+        outs() << "Looking up " << info->methodName << " in " << cls->getQualifiedNameAsString() << "\n";
+        auto lookupResult = cls->getPrimaryContext()->lookup(info->lookupName);
+
+        for (NamedDecl* decl : lookupResult) {
+            auto method = dyn_cast<CXXMethodDecl>(decl);
+            if (!method) {
+                outs() << "lookup result is not a method decl: " << decl->getQualifiedNameAsString() << "\b";
                 continue;
             }
-            if (it->getName() == info->methodName) {
-                if (!info->results.empty()) {
-                    //make sure we don't add overrides
-                    FunctionDecl* d1 = info->results[0];
-                    const bool overload = info->sema->IsOverload(*it, d1, false);
-                    if (verboseMode) {
-                        outs() << (*it)->getQualifiedNameAsString() << " is an overload of " << d1->getQualifiedNameAsString() << " = " << overload << "\n";
-                    }
-                    if (overload) {
-                        if (verboseMode) {
-                            outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
-                        }
-                        info->results.push_back(*it);
-                    }
+            bool overload = true;
+            for (auto func : info->results) {
+                if (!info->sema->IsOverload(method, func, false)) {
+                    overload = false;
+                    break;
                 }
-                else {
-                    if (verboseMode) {
-                        outs() << "Found match: " << (*it)->getQualifiedNameAsString() << "\n";
-                    }
-                    info->results.push_back(*it);
+            }
+            if (verboseMode && !info->results.empty()) {
+                outs() << method->getQualifiedNameAsString() << " is an overload of " << info->results[0]->getQualifiedNameAsString() << " = " << overload << "\n";
+            }
+            if (overload) {
+                if (verboseMode) {
+                    outs() << "Found match: " << method->getQualifiedNameAsString() << ": "
+                            << method->getType().getAsString() << "\n";
                 }
-//                outs() << "Found " << searchInfo->results.size() << ". defintion: "
-//                        << cls->getName() << "::" << it->getName() << "\n";
+                info->results.push_back(method);
             }
         }
         return true;
     };
     searchLambda(type, &searchInfo); //search baseClass
     type->forallBases(searchLambda, &searchInfo, false); //now find in base classes
+
     if (verboseMode) {
         outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << searchInfo.methodName << ": " << searchInfo.results.size() << " results\n";
     }
@@ -513,7 +518,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
         result = prepend + ", ";
     }
     //TODO abort if none found
-    const bool resolveOverloads = searchInfo.results.size() > 1; //TODO skip overriden methods!
+    const bool resolveOverloads = searchInfo.results.size() > 1;
     if (resolveOverloads) {
         if (verboseMode) {
             outs() << type->getName() << "::" << searchInfo.methodName << " is a overloaded signal/slot. Found "
