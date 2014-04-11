@@ -7,6 +7,8 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/Lex/Lexer.h>
 
+namespace ClangUtils {
+
 struct ColouredOStream {
     ColouredOStream(llvm::raw_ostream& stream, llvm::raw_ostream::Colors colour, bool bold)
             : stream(stream) {
@@ -112,5 +114,7 @@ static inline bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* nam
     }
     return false;
 }
+
+} // namespace ClangUtils
 
 #endif /* CLANGUTILS_H_ */

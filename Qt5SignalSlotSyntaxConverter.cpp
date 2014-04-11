@@ -27,6 +27,7 @@
 
 using namespace clang;
 using namespace clang::tooling;
+using namespace ClangUtils;
 using llvm::outs;
 using llvm::errs;
 

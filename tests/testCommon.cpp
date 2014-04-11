@@ -16,6 +16,7 @@
 #include <sstream>
 
 
+using namespace ClangUtils;
 using namespace clang::tooling;
 using llvm::outs;
 
