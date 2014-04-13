@@ -1,5 +1,5 @@
-find_package(Boost)
-find_package(Qt5Core CONFIG REQUIRED)
+find_package(Boost REQUIRED)
+find_package(Qt5Quick 5.3.0 CONFIG REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
 set(TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
