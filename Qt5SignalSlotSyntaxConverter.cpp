@@ -295,6 +295,23 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     convertedMatches++;
 }
 
+static std::string castSignalToMemberFunctionIfNullPtr(ConnectCallMatcher::Parameters& p, clang::ASTContext* ctx) {
+    // QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater); cannot be called (compiler error)
+    // have to change it to QObject::disconnect(myObject, static_cast<void(QObject::*)()>(0), receiver, &QObject::deleteLater);
+    // p.signal can be null in the 2 arg version of disconnect
+    std::string signalString = p.signal ? expr2str(p.signal, ctx) : nullPtrString;
+    if (!p.signal || isNullPointerConstant(p.signal, ctx)) {
+        // need to explicitly cast null pointer since there is no qt overload for signal == null
+        assert(p.slotLiteral);
+        StringRef parameters = signalSlotParameters(p.slotLiteral); // TODO suggest correct parameters
+        return "static_cast<void(" + getLeastQualifiedName(p.sender->getBestDynamicClassType(),
+                p.containingFunction, p.call, verboseMode) + "::*)(" + parameters.str() + ")>(" + signalString + ")";
+    }
+    else {
+        return signalString;
+    }
+}
+
 void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
     // check whether this is the inline implementation of the QObject::disconnect member function
     if (p.containingFunctionName == "QObject::disconnect") {
@@ -370,7 +387,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
                 p.senderString, p);
         addReplacement(signalRange, signalReplacement, result.Context);
     }
-    else if (p.decl->isInstance()) {
+    else {
         //no signal literal argument -> 3 possibilities:
         // foo->disconnect(receiver, SLOT(func()))
         // foo->disconnect(0, receiver, SLOT(func()))
@@ -382,26 +399,38 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         // only the member calls need the sender parameter added, since it is already present with the static call
         SourceRange replacementRange;
         std::string replacement;
-        if (numArgs == 2) {
+        if (p.decl->isInstance() && numArgs == 2) {
             // add "sender, 0, " before receiver
             SourceLocation receiverStart = sourceLocationBeforeStmt(p.receiver, result.Context);
             replacementRange = SourceRange(receiverStart, receiverStart);
             assert(!p.signal);
             assert(!p.receiver->isDefaultArgument()); // must be explicitly passed
-            replacement = p.senderString + ", " + nullPtrString + ", ";
 
+            // we need to cast the null pointer to a pointer to member function because Qt has no overload for this case
+            replacement = p.senderString + ", " + castSignalToMemberFunctionIfNullPtr(p, result.Context) + ", ";
         }
-        else if (numArgs == 3) {
+        else if (p.decl->isInstance() && numArgs == 3) {
             // add "sender, " before signal
-            SourceLocation signalStart = sourceLocationBeforeStmt(p.signal, result.Context);
-            replacementRange = SourceRange(signalStart, signalStart);
+            replacementRange = sourceRangeForStmt(p.signal, result.Context);
+
             assert(p.signal);
             replacement = p.senderString + ", ";
             assert(!p.signal->isDefaultArgument()); // we don't convert calls such as foo->disconnect()
+            replacement += castSignalToMemberFunctionIfNullPtr(p, result.Context);
+        }
+        else if (p.decl->isStatic() && numArgs == 4) {
+            // replace signal with a static_cast<void(QObject::*)()>(0) since the Qt API requires it
+            replacementRange = sourceRangeForStmt(p.signal, result.Context);
+            assert(p.signal);
+            assert(!p.signal->isDefaultArgument()); // we don't convert calls such as foo->disconnect()
+            replacement = castSignalToMemberFunctionIfNullPtr(p, result.Context);
+
         }
         else {
-            throw std::logic_error("QObject::disconnect member function with neither 2 nor 3 args found!");
+            throw std::logic_error("QObject::disconnect member function with wrong arguments!");
+
         }
+
         addReplacement(replacementRange, replacement, result.Context);
     }
     if (p.slotLiteral) {

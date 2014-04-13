@@ -9,6 +9,8 @@ namespace clang {
     class Sema;
 }
 
+extern llvm::cl::opt<std::string> nullPtrString;
+
 #include <atomic>
 
 using clang::ast_matchers::MatchFinder;
