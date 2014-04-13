@@ -34,6 +34,10 @@ using llvm::errs;
 static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
 static llvm::cl::opt<bool> verboseMode("verbose", llvm::cl::cat(clCategory),
         llvm::cl::desc("Enable verbose output"), llvm::cl::init(false));
+static llvm::cl::opt<bool> convertNotFound("convert-not-found", llvm::cl::cat(clCategory),
+        llvm::cl::desc("Whether to convert to new syntax if no method with that name was found"), llvm::cl::init(true));
+static llvm::cl::opt<bool> convertQQuickItemNotFound("convert-qquickitem-not-found", llvm::cl::cat(clCategory),
+        llvm::cl::desc("Whether to convert to new syntax if no method with that name was found and object is a QQuickItem subclass. These are often not public API, so no function pointers are available"), llvm::cl::init(false));
 // not static so that it can be modified by the tests
 llvm::cl::opt<std::string> nullPtrString("nullptr", llvm::cl::init("nullptr"), llvm::cl::cat(clCategory),
         llvm::cl::desc("the string that will be used for a null pointer constant (Default is 'nullptr')"));
@@ -632,6 +636,15 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
             return 0;
         }
     }();
+
+    if (numFound == 0) {
+        if (!convertNotFound) {
+            throw SkipMatchException(Twine("No method with name " + methodName + " found in " + type->getName()).str());
+        }
+        if (isOrInheritsFrom(type, "QQuickItem") && !convertQQuickItemNotFound) {
+            throw SkipMatchException(Twine("No method with name " + methodName + " found in " + type->getName() + " (skipping because it is a QQuickItem)").str());
+        }
+    }
 
     std::string qualifiedName = getLeastQualifiedName(type, p.containingFunction, p.call, verboseMode);
 
