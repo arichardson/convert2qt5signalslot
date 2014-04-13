@@ -43,7 +43,7 @@ static inline bool isNullPointerConstant(const clang::Expr* expr, clang::ASTCont
 
 namespace {
 template<class T>
-static const T* findFirstChildWithTypeHelper(const clang::Stmt* stmt) {
+static inline const T* findFirstChildWithTypeHelper(const clang::Stmt* stmt) {
     const T* casted = llvm::dyn_cast<T>(stmt);
     if (casted) {
         return casted;
@@ -113,6 +113,65 @@ static inline bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* nam
         }
     }
     return false;
+}
+
+/** returns the parent contexts of @p ctx (including @p ctx). First entry will be ctx and the last will be a TranslationUnitDecl* */
+static inline std::vector<const clang::DeclContext*> getParentContexts(const clang::DeclContext* ctx) {
+    std::vector<const clang::DeclContext*> ret;
+    while (ctx) {
+        ret.push_back(ctx);
+        ctx = ctx->getLookupParent();
+    }
+    return ret;
+}
+
+static inline  void printParentContexts(const clang::DeclContext* base) {
+    for (auto ctx : getParentContexts(base)) {
+        llvm::outs() << "::";
+        if (auto record = llvm::dyn_cast<clang::CXXRecordDecl>(ctx)) {
+            llvm::outs() << record->getName() << "(record)";
+        }
+        else if (auto ns = llvm::dyn_cast<clang::NamespaceDecl>(ctx)) {
+            llvm::outs() << ns->getName() << "(namespace)";
+        }
+        else if (auto func = llvm::dyn_cast<clang::FunctionDecl>(ctx)) {
+            if (llvm::isa<clang::CXXConstructorDecl>(ctx)) {
+                llvm::outs() << "(ctor)";
+            }
+            else if (llvm::isa<clang::CXXDestructorDecl>(ctx)) {
+                llvm::outs() << "(dtor)";
+            }
+            else if (llvm::isa<clang::CXXConversionDecl>(ctx)) {
+                llvm::outs() << "(conversion)";
+            }
+            else {
+                llvm::outs() << func->getName() << "(func)";
+            }
+        }
+        else if (llvm::dyn_cast<clang::TranslationUnitDecl>(ctx)) {
+            llvm::outs() << "(translation unit)";
+        }
+        else {
+            llvm::outs() << "unknown(" << ctx->getDeclKindName() << ")";
+        }
+    }
+}
+
+static inline std::vector<const clang::DeclContext*> getNameQualifiers(const clang::DeclContext* ctx) {
+    std::vector<const clang::DeclContext*> ret;
+    while (ctx) {
+        // only namespaces and classes/structs/unions add additional qualifiers to the name lookup
+        if (auto ns = llvm::dyn_cast<clang::NamespaceDecl>(ctx)) {
+            if (!ns->isAnonymousNamespace()) {
+                ret.push_back(ns);
+            }
+        }
+        else if (llvm::isa<clang::CXXRecordDecl>(ctx)) {
+            ret.push_back(ctx);
+        }
+        ctx = ctx->getLookupParent();
+    }
+    return ret;
 }
 
 } // namespace ClangUtils

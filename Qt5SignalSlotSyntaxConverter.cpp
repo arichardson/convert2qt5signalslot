@@ -286,9 +286,9 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     const CXXRecordDecl* receiverTypeDecl = p.receiver->getBestDynamicClassType();
 
     const std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral,
-            p.senderString, sourceLocationBeforeStmt(p.call, result.Context));
+            p.senderString, p);
     const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral,
-            p.receiverString, sourceLocationBeforeStmt(p.call, result.Context));
+            p.receiverString, p);
     addReplacement(signalRange, signalReplacement, result.Context);
     addReplacement(slotRange, slotReplacement, result.Context);
     tryRemovingMembercallArg(p, result);
@@ -367,7 +367,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         SourceRange signalRange = sourceRangeForStmt(p.signal, result.Context);
         const CXXRecordDecl* senderTypeDecl = p.sender->getBestDynamicClassType();
         std::string signalReplacement = calculateReplacementStr(senderTypeDecl, p.signalLiteral,
-                p.senderString, sourceLocationBeforeStmt(p.call, result.Context));
+                p.senderString, p);
         addReplacement(signalRange, signalReplacement, result.Context);
     }
     else if (p.decl->isInstance()) {
@@ -408,7 +408,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         SourceRange slotRange = sourceRangeForStmt(p.slot, result.Context);
         const CXXRecordDecl* receiverTypeDecl = p.receiver->getBestDynamicClassType();
         const std::string slotReplacement = calculateReplacementStr(receiverTypeDecl, p.slotLiteral,
-                p.receiverString, sourceLocationBeforeStmt(p.call, result.Context));
+                p.receiverString, p);
         addReplacement(slotRange, slotReplacement, result.Context);
     }
     // add the default arguments
@@ -457,9 +457,15 @@ void ConnectCallMatcher::tryRemovingMembercallArg(const ConnectCallMatcher::Para
     addReplacement(range, replacement, result.Context);
 }
 
+template<class Container, class Predicate>
+static bool contains(const Container& c, Predicate p) {
+    auto end = std::end(c);
+    return std::find_if(std::begin(c), end, p) != end;
+}
+
 
 std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* type,
-        const StringLiteral* connectStr, const std::string& prepend, SourceLocation lookupLocation) {
+        const StringLiteral* connectStr, const std::string& prepend, const ConnectCallMatcher::Parameters& p) {
 
     StringRef methodName = signalSlotName(connectStr);
     // TODO: handle Q_PRIVATE_SLOTS
@@ -479,7 +485,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
 
 
     //outs() << "Looking up " << methodName << " in " << type->getQualifiedNameAsString() << "\n";
-    LookupResult lookup(*sema, lookupName, lookupLocation, Sema::LookupMemberName);
+    LookupResult lookup(*sema, lookupName, sourceLocationBeforeStmt(p.call, &currentCompilerInstance->getASTContext()), Sema::LookupMemberName);
     // setting inUnqualifiedLookup to true makes sure that base classes are searched too
     sema->LookupQualifiedName(lookup, const_cast<DeclContext*>(type->getPrimaryContext()), true);
     //outs() << "lr after lookup: ";
@@ -522,6 +528,48 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
         }
     }();
 
+    auto targetTypeQualifiers = getNameQualifiers(type);
+    assert(type->Equals(targetTypeQualifiers[0]));
+    std::string qualifiedName;
+
+    if (targetTypeQualifiers.size() < 2) {
+        // no need to qualify the name if there is no surrounding context
+        // TODO template arguments
+        qualifiedName = type->getName();
+    }
+    else {
+        // have to qualify, but check the current scope first
+        auto containingScopeQualifiers = getNameQualifiers(p.containingFunction->getLookupParent());
+        // type must always be included, now check whether the other scopes have to be explicitly named
+        // it's not neccessary if the current function scope is also inside that namespace/class
+        Twine buffer = type->getName();
+        for (uint i = 1; i < containingScopeQualifiers.size(); ++i) {
+            const DeclContext* ctx = containingScopeQualifiers[i];
+            assert(ctx->isNamespace() || ctx->isRecord());
+            if (!contains(containingScopeQualifiers, [ctx](const DeclContext* dc) { return ctx->Equals(dc); })) {
+                if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
+                    buffer = record->getName() + "::" + qualifiedName;
+                }
+                else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
+                    buffer = ns->getName() + "::" + qualifiedName;
+                }
+                else {
+                    // this should never happen
+                    outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*)ctx << "\n";
+                    printParentContexts(type);
+                }
+            }
+            else {
+                auto named = dyn_cast<NamedDecl>(ctx);
+                if (verboseMode) {
+                    outs() << "Don't need to add " << (named ? named->getName() : "nullptr") << " to lookup\n";
+                }
+            }
+        }
+        qualifiedName = buffer.str();
+    }
+
+
     if (verboseMode) {
         outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << methodName << ": " << numFound << " results\n";
     }
@@ -537,13 +585,13 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
         //overloaded signal/slot found -> we have to disambiguate
         StringRef parameters = signalSlotParameters(connectStr); // TODO suggest correct parameters
         result += "static_cast<void("; //TODO return type
-        result += type->getQualifiedNameAsString(); // TODO: only add the necessary namespace qualifiers
+        result += qualifiedName;
         result += "::*)(";
         result += parameters;
         result += ")>(";
     }
     result += '&';
-    result += type->getQualifiedNameAsString(); // TODO: only add the necessary namespace qualifiers
+    result += qualifiedName;
     result += "::";
     result += methodName;
     if (numFound > 1) {

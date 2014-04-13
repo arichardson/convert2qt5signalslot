@@ -49,7 +49,7 @@ private:
      * @return The new signal/slot expression for the connect call
      */
     std::string calculateReplacementStr(const clang::CXXRecordDecl* type,
-            const clang::StringLiteral* connectStr, const std::string& prepend, clang::SourceLocation lookupLocation);
+            const clang::StringLiteral* connectStr, const std::string& prepend, const Parameters& p);
 private:
     friend class ConnectConverter;
     std::atomic_int foundMatches;
