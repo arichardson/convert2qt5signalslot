@@ -95,24 +95,31 @@ static inline clang::SourceRange sourceRangeForStmt(const clang::Stmt* stmt, cla
 
 /** Checks whether @p cls inherits from a class named @p name with the specified access (public, private, protected, none)
  *
- * @param name can be something like "class QObject" (must match the way a QualType is converted to string) */
+ * @param name is the name of the class (without template parameters). E.g. "QObject" */
 static inline bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* name,
         clang::AccessSpecifier access = clang::AS_public) {
     for (auto it = cls->bases_begin(); it != cls->bases_end(); ++it) {
         clang::QualType type = it->getType();
-        const std::string typeName = type.getAsString();
-        if (it->getAccessSpecifier() == access && typeName == name) {
-            return true;
-        }
         auto baseDecl = type->getAsCXXRecordDecl(); // will always succeed
         assert(baseDecl);
+        if (it->getAccessSpecifier() == access && baseDecl->getName() == name) {
+            return true;
+        }
         // now check the base classes for the base class
-        bool found = inheritsFrom(baseDecl, name, access);
-        if (found) {
+        if (inheritsFrom(baseDecl, name, access)) {
             return true;
         }
     }
     return false;
+}
+
+/** Same as ClangUtils::inheritsFrom(), but also returns true if @p cls is of type @p name */
+static inline bool isOrInheritsFrom(const clang::CXXRecordDecl* cls, const char* name,
+        clang::AccessSpecifier access = clang::AS_public) {
+    if (cls->getName() == name) {
+        return true;
+    }
+    return inheritsFrom(cls, name, access);
 }
 
 /** returns the parent contexts of @p ctx (including @p ctx). First entry will be ctx and the last will be a TranslationUnitDecl* */
