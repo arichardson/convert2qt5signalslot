@@ -1,5 +1,4 @@
 #include "testCommon.h"
-#include "fake_qobjectdefs.h"
 
 #include "../Qt5SignalSlotSyntaxConverter.h"
 #include "../ClangUtils.h"
@@ -39,8 +38,12 @@ typedef std::vector<std::string> StringList;
 static const auto isNewline = [](char c) {return c == '\n';};
 
 static bool runTool(clang::FrontendAction *toolAction, const std::string code, const AdditionalFiles& additionalFiles, const std::vector<std::string>& extraOptions) {
+    static const std::vector<const char*> qt5CompileDefs = { QT5_REQUIRED_COMPILER_FLAGS };
     std::vector<std::string> commands { "clang", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR };
     for (const auto& opt : extraOptions) {
+        commands.push_back(opt);
+    }
+    for (const auto& opt : qt5CompileDefs) {
         commands.push_back(opt);
     }
     commands.push_back(FILE_NAME);
@@ -50,8 +53,6 @@ static bool runTool(clang::FrontendAction *toolAction, const std::string code, c
     ToolInvocation Invocation(commands, toolAction, files);
     // this seems to be fixed in later clang versions: for some reason free() is called on these strings, although StringRef should be non-owning
     Invocation.mapVirtualFile(FILE_NAME, code);
-    Invocation.mapVirtualFile(INCLUDE_DIR "QObject", fakeQObjectCode);
-    Invocation.mapVirtualFile(INCLUDE_DIR "qobjectdefs.h", fakeQObjectDefsCode);
     for (auto file : additionalFiles) {
         Invocation.mapVirtualFile(file.first, file.second);
     }

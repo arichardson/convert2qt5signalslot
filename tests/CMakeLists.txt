@@ -2,7 +2,16 @@ find_package(Boost REQUIRED)
 find_package(Qt5Quick 5.3.0 CONFIG REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
-set(TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(QT5_REQUIRED_COMPILER_FLAGS "")
+foreach(_flag ${Qt5Quick_COMPILE_DEFINITIONS})
+    set(QT5_REQUIRED_COMPILER_FLAGS "${QT5_REQUIRED_COMPILER_FLAGS} \"-D${_flag}\", ")
+endforeach()
+foreach(_flag ${Qt5Quick_INCLUDE_DIRS})
+    set(QT5_REQUIRED_COMPILER_FLAGS "${QT5_REQUIRED_COMPILER_FLAGS} \"-isystem\", \"${_flag}\",")
+endforeach()
+foreach(_flag ${Qt5Quick_EXECUTABLE_COMPILE_FLAGS})
+    set(QT5_REQUIRED_COMPILER_FLAGS "${QT5_REQUIRED_COMPILER_FLAGS} \"${_flag}\",")
+endforeach()
 configure_file(config-tests.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-tests.h @ONLY)
 
 add_library(testCommonObjs OBJECT testCommon.cpp) #only compile once, not for every test

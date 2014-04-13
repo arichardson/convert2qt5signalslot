@@ -5,7 +5,7 @@ const char* test2 = "#include \"moc_foo.cpp\"";
 const char* test3 = "#include \"foo_moc.cpp\"";
 
 const char* base = R"--(
-#include <qobjectdefs.h>
+#include <QObject>
 
 int main() {
     QObject* obj = new QObject();
@@ -16,7 +16,7 @@ int main() {
 )--";
 
 const char* baseOut = R"--(
-#include <qobjectdefs.h>
+#include <QObject>
 
 int main() {
     QObject* obj = new QObject();
