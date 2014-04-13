@@ -127,9 +127,9 @@ int testMain(std::string input, std::string expected, int found, int converted, 
     auto lineCount = std::min(resultLines.size(), expectedLines.size());
     for (size_t i = 0; i < lineCount; ++i) {
         if (expectedLines[i] != resultLines[i]) {
-            outs() << i << " expected:";
+            outs() << (i + 1) << " expected:";
             colouredOut(llvm::raw_ostream::GREEN).writeEscaped(expectedLines[i]) << "\n";
-            outs() << i << " result  :";
+            outs() << (i + 1) << " result  :";
             colouredOut(llvm::raw_ostream::RED).writeEscaped(resultLines[i]) << "\n";
         } else {
             //outs() << i << "  okay   :" << expectedLines[i] << "\n";
