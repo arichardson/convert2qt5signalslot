@@ -89,17 +89,13 @@ int testMain(std::string input, std::string expected, int found, int converted, 
         colouredOut(llvm::raw_ostream::RED) << "Failure: Failed to convert " <<  converter.matchesFailed() << " matches!\n";
         return 1;
     }
-    if (converter.matchesSkipped() > 0) {
-        colouredOut(llvm::raw_ostream::RED) << "Failure: Skipped " <<  converter.matchesSkipped() << " matches!\n";
-        return 1;
-    }
     if (found != converter.matchesFound()) {
         colouredOut(llvm::raw_ostream::RED) << "Failure: Expected to find " << found
                 << " matches, but found " << converter.matchesFound() << "!\n";
         return 1;
     }
-    if (converted != converter.matchesFound()) {
-        colouredOut(llvm::raw_ostream::RED) << "Failure: Expected to convert " << found
+    if (converted != converter.matchesConverted()) {
+        colouredOut(llvm::raw_ostream::RED) << "Failure: Expected to convert " << converted
                 << " matches, but converted " << converter.matchesConverted() << "!\n";
         return 1;
     }
