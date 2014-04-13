@@ -151,34 +151,41 @@ void ConnectCallMatcher::matchFound(const ConnectCallMatcher::Parameters& p, con
     }
 }
 
-static void foundWrongCall(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
-    colouredOut(llvm::raw_ostream::MAGENTA) << expr2str(p.call, result.Context);
-    outs() << " (at ";
-    p.call->getExprLoc().print(outs(), *result.SourceManager);
-    outs() << ")\n";
+static void foundWrongCall(llvm::raw_string_ostream& out, const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
+    out.changeColor(llvm::raw_ostream::MAGENTA, true) << expr2str(p.call, result.Context);
+    out.resetColor();
+    out << " (at ";
+    p.call->getExprLoc().print(out, *result.SourceManager);
+    out << ")\n";
 }
 
 static void foundWithoutStringLiterals(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
-    outs() << "Found QObject::" << p.decl->getName() << "() call that doesn't use SIGNAL()/SLOT() inside function "
+    std::string buf;
+    llvm::raw_string_ostream out(buf);
+    out << "Found QObject::" << p.decl->getName() << "() call that doesn't use SIGNAL()/SLOT() inside function "
             << p.containingFunctionName << ": ";
-    foundWrongCall(p, result);
+    foundWrongCall(out, p, result);
+    throw SkipMatchException(out.str());
 }
 
 static void foundOtherOverload(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
     if (!verboseMode) {
         return;
     }
-    outs() << "Found QObject::" << p.decl->getName() << "() overload without const char* parameters inside function "
+    std::string buf;
+    llvm::raw_string_ostream out(buf);
+    out << "Found QObject::" << p.decl->getName() << "() overload without const char* parameters inside function "
             << p.containingFunctionName << ": ";
-    foundWrongCall(p, result);
-    outs() << "Called method was: " << p.decl->getQualifiedNameAsString() << "(";
+    foundWrongCall(out, p, result);
+    out << "Called method was: " << p.decl->getQualifiedNameAsString() << "(";
     for (uint i = 0; i < p.decl->getNumParams(); ++i) {
         if (i != 0) {
-            outs() << ", ";
+            out << ", ";
         }
-        outs() << p.decl->getParamDecl(i)->getType().getAsString();
+        out << p.decl->getParamDecl(i)->getType().getAsString();
     }
-    outs() << ")\n";
+    out << ")\n";
+    throw SkipMatchException(out.str());
 }
 
 
