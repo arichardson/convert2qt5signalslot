@@ -38,7 +38,7 @@ static inline ColouredOStream colouredErr(llvm::raw_ostream::Colors colour, bool
 }
 
 static inline bool isNullPointerConstant(const clang::Expr* expr, clang::ASTContext* ctx) {
-    return expr->isNullPointerConstant(*ctx, clang::Expr::NPC_NeverValueDependent) == clang::Expr::NPCK_NotNull;
+    return expr->isNullPointerConstant(*ctx, clang::Expr::NPC_NeverValueDependent) != clang::Expr::NPCK_NotNull;
 }
 
 namespace {

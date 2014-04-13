@@ -349,7 +349,7 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
     if (!p.signalLiteral && !p.slotLiteral) {
         // at least one of the parameters must be a string literal (SIGNAL()/SLOT() expansion)
 
-        if ((p.signal && isNullPointerConstant(p.signal, result.Context)) || isNullPointerConstant(p.slot, result.Context)) {
+        if ((!p.signal || !isNullPointerConstant(p.signal, result.Context)) && !isNullPointerConstant(p.slot, result.Context)) {
             // signal or slot is not a string literal and not a nullPointer -> strange call -> print message
             foundWithoutStringLiterals(p, result);
         }
