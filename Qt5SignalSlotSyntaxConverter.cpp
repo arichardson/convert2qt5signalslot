@@ -457,13 +457,6 @@ void ConnectCallMatcher::tryRemovingMembercallArg(const ConnectCallMatcher::Para
     addReplacement(range, replacement, result.Context);
 }
 
-template<class Container, class Predicate>
-static bool contains(const Container& c, Predicate p) {
-    auto end = std::end(c);
-    return std::find_if(std::begin(c), end, p) != end;
-}
-
-
 std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* type,
         const StringLiteral* connectStr, const std::string& prepend, const ConnectCallMatcher::Parameters& p) {
 
@@ -528,46 +521,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
         }
     }();
 
-    auto targetTypeQualifiers = getNameQualifiers(type);
-    assert(type->Equals(targetTypeQualifiers[0]));
-    std::string qualifiedName;
-
-    if (targetTypeQualifiers.size() < 2) {
-        // no need to qualify the name if there is no surrounding context
-        // TODO template arguments
-        qualifiedName = type->getName();
-    }
-    else {
-        // have to qualify, but check the current scope first
-        auto containingScopeQualifiers = getNameQualifiers(p.containingFunction->getLookupParent());
-        // type must always be included, now check whether the other scopes have to be explicitly named
-        // it's not neccessary if the current function scope is also inside that namespace/class
-        Twine buffer = type->getName();
-        for (uint i = 1; i < containingScopeQualifiers.size(); ++i) {
-            const DeclContext* ctx = containingScopeQualifiers[i];
-            assert(ctx->isNamespace() || ctx->isRecord());
-            if (!contains(containingScopeQualifiers, [ctx](const DeclContext* dc) { return ctx->Equals(dc); })) {
-                if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
-                    buffer = record->getName() + "::" + qualifiedName;
-                }
-                else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
-                    buffer = ns->getName() + "::" + qualifiedName;
-                }
-                else {
-                    // this should never happen
-                    outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*)ctx << "\n";
-                    printParentContexts(type);
-                }
-            }
-            else {
-                auto named = dyn_cast<NamedDecl>(ctx);
-                if (verboseMode) {
-                    outs() << "Don't need to add " << (named ? named->getName() : "nullptr") << " to lookup\n";
-                }
-            }
-        }
-        qualifiedName = buffer.str();
-    }
+    std::string qualifiedName = getLeastQualifiedName(type, p.containingFunction, p.call, verboseMode);
 
 
     if (verboseMode) {

@@ -174,6 +174,64 @@ static inline std::vector<const clang::DeclContext*> getNameQualifiers(const cla
     return ret;
 }
 
+template<class Container, class Predicate>
+static inline bool contains(const Container& c, Predicate p) {
+    auto end = std::end(c);
+    return std::find_if(std::begin(c), end, p) != end;
+}
+
+/** @return the shortest possible way of referring to @p type in @p containingFunction, at the location of @p callExpression
+ *
+ *  This removes any namespace/class qualifiers that are already part of current function scope
+ *  TODO: handle using directives
+ */
+static inline std::string getLeastQualifiedName(const clang::CXXRecordDecl* type, const clang::DeclContext* containingFunction,
+        const clang::CallExpr* callExpression, bool verbose) {
+    using namespace clang;
+    using namespace llvm;
+    auto targetTypeQualifiers = getNameQualifiers(type);
+    assert(type->Equals(targetTypeQualifiers[0]));
+    std::string qualifiedName;
+
+    // TODO template arguments
+
+    if (targetTypeQualifiers.size() < 2) {
+        // no need to qualify the name if there is no surrounding context
+        return type->getName();
+    }
+    else {
+        // have to qualify, but check the current scope first
+        auto containingScopeQualifiers = getNameQualifiers(containingFunction->getLookupParent());
+        // type must always be included, now check whether the other scopes have to be explicitly named
+        // it's not neccessary if the current function scope is also inside that namespace/class
+        Twine buffer = type->getName();
+        for (uint i = 1; i < containingScopeQualifiers.size(); ++i) {
+            const DeclContext* ctx = containingScopeQualifiers[i];
+            assert(ctx->isNamespace() || ctx->isRecord());
+            if (!contains(containingScopeQualifiers, [ctx](const DeclContext* dc) { return ctx->Equals(dc); })) {
+                if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
+                    buffer = record->getName() + "::" + qualifiedName;
+                }
+                else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
+                    buffer = ns->getName() + "::" + qualifiedName;
+                }
+                else {
+                    // this should never happen
+                    outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*)ctx << "\n";
+                    printParentContexts(type);
+                }
+            }
+            else {
+                auto named = dyn_cast<NamedDecl>(ctx);
+                if (verbose) {
+                    outs() << "Don't need to add " << (named ? named->getName() : "nullptr") << " to lookup\n";
+                }
+            }
+        }
+        return buffer.str();
+    }
+}
+
 } // namespace ClangUtils
 
 #endif /* CLANGUTILS_H_ */
