@@ -15,9 +15,9 @@ int main() {
     QObject::disconnect(obj, &QObject::objectNameChanged, objQPointer.data(), &QObject::deleteLater);
     QObject::disconnect(objQPointer.data(), &QObject::objectNameChanged, objQPointer.data(), &QObject::deleteLater);
     QObject::disconnect(objQPointer.data(), &QObject::objectNameChanged, obj, &QObject::deleteLater);
-    QObject::disconnect(obj, &QObject::objectNameChanged, objQPointer.data(), &QObject::deleteLater);
+    QObject::disconnect(objQPointer.data(), &QObject::objectNameChanged, obj, &QObject::deleteLater);
     QObject::disconnect(objQPointer.data(), &QObject::objectNameChanged, objQPointer.data(), &QObject::deleteLater);
-    QObject::disconnect(objQPointer.data(), static_cast<void(QObject::*)()>(nullptr), objQPointer.data(), &QObject::deleteLater);
+    QObject::disconnect(objQPointer.data(), static_cast<void(QObject::*)()>(nullptr), obj, &QObject::deleteLater);
     QObject::disconnect(objQPointer.data(), static_cast<void(QObject::*)()>(nullptr), objQPointer.data(), &QObject::deleteLater);
     return 0;
 }
