@@ -29,7 +29,7 @@ converter_unit_test(Membercall)
 converter_unit_test(Disconnect)
 converter_unit_test(MissingMocInclude)
 converter_unit_test(NullptrCustomization)
-converter_unit_test(QPointer)
+converter_unit_test(SmartPointer)
 
 
 set(CMAKE_AUTOMOC ON)
@@ -46,5 +46,5 @@ build_old_and_new(membercall)
 build_old_and_new(scoping)
 build_old_and_new(overloads)
 build_old_and_new(disconnect)
-build_old_and_new(qpointer)
+build_old_and_new(smart_pointer)
 # This one does not work, there is no signal = nullptr overload for QObject::disconnect
