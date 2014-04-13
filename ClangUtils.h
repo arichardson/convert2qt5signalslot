@@ -102,6 +102,7 @@ static inline bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* nam
         clang::QualType type = it->getType();
         auto baseDecl = type->getAsCXXRecordDecl(); // will always succeed
         assert(baseDecl);
+        // llvm::outs() << "Checking " << cls->getName() << " for " << name << "\n";
         if (it->getAccessSpecifier() == access && baseDecl->getName() == name) {
             return true;
         }
@@ -116,6 +117,7 @@ static inline bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* nam
 /** Same as ClangUtils::inheritsFrom(), but also returns true if @p cls is of type @p name */
 static inline bool isOrInheritsFrom(const clang::CXXRecordDecl* cls, const char* name,
         clang::AccessSpecifier access = clang::AS_public) {
+    // llvm::outs() << "Checking " << cls->getName() << " for " << name << "\n";
     if (cls->getName() == name) {
         return true;
     }

@@ -212,21 +212,37 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 }
 
 
-static inline bool isQtSmartPointerImplicitConversion(const Expr* expr, ASTContext* ctx) {
-    auto noImplicit = expr->IgnoreImplicit();
-    if (const CXXOperatorCallExpr* opCall = dyn_cast<CXXOperatorCallExpr>(noImplicit)) {
-        //outs() << "operator=" << getOperatorSpelling(opCall->getOperator()) << ": " << opCall->getOperator() << "\n";
-        // must be operator->()
-        if (opCall->getOperator() != OO_Arrow) {
-            return false;
-        }
-        if (auto recordDecl = dyn_cast_or_null<CXXRecordDecl>(opCall->getCalleeDecl()->getDeclContext())) {
-            if (isOrInheritsFrom(recordDecl, "QPointer")) {
+static bool isSmartPointerOperatorArrow(const Expr* expr, std::initializer_list<const char*> classes, ASTContext* ctx) {
+    auto opCall = dyn_cast<CXXOperatorCallExpr>(expr->IgnoreImplicit());
+    if (!opCall) {
+        return false;
+    }
+    //outs() << "operator=" << getOperatorSpelling(opCall->getOperator()) << ": " << opCall->getOperator() << "\n";
+    // must be operator->()
+    if (opCall->getOperator() != OO_Arrow) {
+        return false;
+    }
+    if (auto recordDecl = dyn_cast_or_null<CXXRecordDecl>(opCall->getCalleeDecl()->getDeclContext())) {
+        for (const char* className : classes) {
+            if (isOrInheritsFrom(recordDecl, className)) {
                 return true;
             }
         }
     }
-    else if (const CXXMemberCallExpr* memberCall = dyn_cast<CXXMemberCallExpr>(noImplicit)) {
+    return false;
+}
+
+static inline bool isQtSmartPointerOperatorArrow(const Expr* expr, ASTContext* ctx) {
+    return isSmartPointerOperatorArrow(expr, { "QPointer", "QScopedPointer", "QSharedPointer" }, ctx);
+}
+
+static inline bool isStlSmartPointerOperatorArrow(const Expr* expr, ASTContext* ctx) {
+    // at least with libstdc++ shared_ptr operator-> is inside class __shared_ptr
+    return isSmartPointerOperatorArrow(expr, { "unique_ptr", "shared_ptr", "__shared_ptr" }, ctx);
+}
+
+static inline bool isQPointerImplicitConversion(const Expr* expr, ASTContext* ctx) {
+    if (const CXXMemberCallExpr* memberCall = dyn_cast<CXXMemberCallExpr>(expr->IgnoreImplicit())) {
         if (!isa<CXXConversionDecl>(memberCall->getCalleeDecl())) {
             return false;
         }
@@ -237,7 +253,6 @@ static inline bool isQtSmartPointerImplicitConversion(const Expr* expr, ASTConte
             }
         }
     }
-    //noImplicit->dump(outs(), ctx->getSourceManager());
     return false;
 }
 
@@ -256,8 +271,12 @@ static std::string membercallImplicitParameter(const Expr* thisArg, ASTContext* 
         return "&" + stringRepresentation;
     }
     // we have to append .data() for QPointer arguments since the implicit conversion operator is somehow ignore with the new syntax
-    if (isQtSmartPointerImplicitConversion(thisArg, ctx)) {
+    if (isQtSmartPointerOperatorArrow(thisArg, ctx)) {
         return stringRepresentation + ".data()";
+    }
+    else if (isStlSmartPointerOperatorArrow(thisArg, ctx)) {
+        //STL uses .get() instead of .data()
+        return stringRepresentation + ".get()";
     }
     return stringRepresentation;
 
@@ -333,13 +352,13 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     addReplacement(signalRange, signalReplacement, result.Context);
     addReplacement(slotRange, slotReplacement, result.Context);
     tryRemovingMembercallArg(p, result);
-    if (isQtSmartPointerImplicitConversion(p.sender, result.Context)) {
+    if (isQPointerImplicitConversion(p.sender, result.Context)) {
         outs() << "sender is qpointer\n";
         addReplacement(sourceRangeForStmt(p.sender, result.Context),
                 expr2str(p.sender, result.Context) + ".data()", result.Context);
     }
     // instance method qpointer.data() is handled in membercallImplicitParameter()
-    if (p.decl->isStatic() && isQtSmartPointerImplicitConversion(p.receiver, result.Context)) {
+    if (p.decl->isStatic() && isQPointerImplicitConversion(p.receiver, result.Context)) {
         outs() << "receiver is qpointer\n";
         addReplacement(sourceRangeForStmt(p.receiver, result.Context),
                 expr2str(p.receiver, result.Context) + ".data()", result.Context);
@@ -507,13 +526,13 @@ void ConnectCallMatcher::convertDisconnect(ConnectCallMatcher::Parameters& p, co
         addReplacement(SourceRange(afterReceiver, afterReceiver), ", " + nullPtrString, result.Context);
     }
 
-    if (isQtSmartPointerImplicitConversion(p.receiver, result.Context)) {
+    if (isQPointerImplicitConversion(p.receiver, result.Context)) {
         //outs() << "receiver is qpointer\n";
         addReplacement(sourceRangeForStmt(p.receiver, result.Context),
                 expr2str(p.receiver, result.Context) + ".data()", result.Context);
     }
     // instance method qpointer.data() is handled in membercallImplicitParameter()
-    if (p.decl->isStatic() && isQtSmartPointerImplicitConversion(p.sender, result.Context)) {
+    if (p.decl->isStatic() && isQPointerImplicitConversion(p.sender, result.Context)) {
         //outs() << "sender is qpointer\n";
         addReplacement(sourceRangeForStmt(p.sender, result.Context),
                 expr2str(p.sender, result.Context) + ".data()", result.Context);
