@@ -35,5 +35,5 @@ build_old_and_new(simple)
 build_old_and_new(membercall)
 build_old_and_new(scoping)
 build_old_and_new(overloads)
+build_old_and_new(disconnect)
 # This one does not work, there is no signal = nullptr overload for QObject::disconnect
-#build_old_and_new(disconnect)

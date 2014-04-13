@@ -28,9 +28,10 @@ int main() {
     QObject::disconnect(myObject, &QObject::objectNameChanged, receiver, 0); // same as this
 
     // disconnect everything from myObject connected to receiver::deleteLater
-    QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater);
-    QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater); // same as this
-    QObject::disconnect(myObject, 0, receiver, &QObject::deleteLater); // and this
+    // TODO: contribute a patch to Qt to allow passing null as second argument
+    QObject::disconnect(myObject, static_cast<void(QObject::*)()>(0), receiver, &QObject::deleteLater);
+    QObject::disconnect(myObject, static_cast<void(QObject::*)()>(0), receiver, &QObject::deleteLater); // same as this
+    QObject::disconnect(myObject, static_cast<void(QObject::*)()>(0), receiver, &QObject::deleteLater); // and this
 
     // disconnect everything from myObject::objectNameChanged connected to receiver::deleteLater
     QObject::disconnect(myObject, &QObject::objectNameChanged, receiver, &QObject::deleteLater);
