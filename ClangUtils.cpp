@@ -5,20 +5,25 @@
 using namespace clang;
 using namespace llvm;
 
-static void collectAllUsingDirectivesHelper(const clang::DeclContext* ctx, std::vector<UsingDirectiveDecl*>& buf) {
+static void collectAllUsingNamespaceDirectivesHelper(const clang::DeclContext* ctx, std::vector<UsingDirectiveDecl*>& buf, SourceLocation callLocation, const SourceManager& sm) {
     if (!ctx) {
         return;
     }
     for (auto it = ctx->using_directives_begin(); it != ctx->using_directives_end(); ++it) {
-        (*it)->dump(outs());
-        buf.push_back(*it);
+        //(*it)->dump(outs());
+        if (sm.isBeforeInTranslationUnit((*it)->getLocStart(), callLocation)) {
+            buf.push_back(*it);
+        }
+        else {
+            //outs() << "Using directive is after call location, not adding!\n";
+        }
     }
-    collectAllUsingDirectivesHelper(ctx->getLookupParent(), buf);
+    collectAllUsingNamespaceDirectivesHelper(ctx->getLookupParent(), buf,  callLocation, sm);
 }
 
-static std::vector<UsingDirectiveDecl*> collectAllUsingDirectives(const clang::DeclContext* ctx) {
+static std::vector<UsingDirectiveDecl*> collectAllUsingNamespaceDirectives(const clang::DeclContext* ctx, SourceLocation callLocation, const SourceManager& sm) {
     std::vector<UsingDirectiveDecl*> ret;
-    collectAllUsingDirectivesHelper(ctx, ret);
+    collectAllUsingNamespaceDirectivesHelper(ctx, ret, callLocation, sm);
     return ret;
 }
 
@@ -36,7 +41,8 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
         return type->getName();
     }
 
-    auto usingDirectives = collectAllUsingDirectives(containingFunction);
+    auto usingDirectives = collectAllUsingNamespaceDirectives(containingFunction,
+            sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
 
     // have to qualify, but check the current scope first
     auto containingScopeQualifiers = getNameQualifiers(containingFunction->getLookupParent());
@@ -49,10 +55,10 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
         auto declContextEquals = [ctx](const DeclContext* dc) {
             return ctx->Equals(dc);
         };
-        auto usingDirectiveIsContext = [ctx](UsingDirectiveDecl* ud) {
+        auto isUsingNamespace = [ctx](UsingDirectiveDecl* ud) {
             return ud->getNominatedNamespace()->Equals(ctx);
         };
-        if (contains(containingScopeQualifiers, declContextEquals) || contains(usingDirectives, usingDirectiveIsContext)) {
+        if (contains(containingScopeQualifiers, declContextEquals) || contains(usingDirectives, isUsingNamespace)) {
             auto named = dyn_cast<NamedDecl>(ctx);
             if (verbose) {
                 outs() << "Don't need to add " << (named ? named->getName() : "nullptr") << " to lookup\n";
