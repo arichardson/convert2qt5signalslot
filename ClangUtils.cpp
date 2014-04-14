@@ -17,37 +17,36 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type, 
         // no need to qualify the name if there is no surrounding context
         return type->getName();
     }
-    else {
-        // have to qualify, but check the current scope first
-        auto containingScopeQualifiers = getNameQualifiers(containingFunction->getLookupParent());
-        // type must always be included, now check whether the other scopes have to be explicitly named
-        // it's not neccessary if the current function scope is also inside that namespace/class
-        Twine buffer = type->getName();
-        for (uint i = 1; i < containingScopeQualifiers.size(); ++i) {
-            const DeclContext* ctx = containingScopeQualifiers[i];
-            assert(ctx->isNamespace() || ctx->isRecord());
-            if (!contains(containingScopeQualifiers, [ctx](const DeclContext* dc) { return ctx->Equals(dc); })) {
-                if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
-                    buffer = record->getName() + "::" + qualifiedName;
-                }
-                else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
-                    buffer = ns->getName() + "::" + qualifiedName;
-                }
-                else {
-                    // this should never happen
-                    outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*)ctx << "\n";
-                    printParentContexts(type);
-                }
+
+    // have to qualify, but check the current scope first
+    auto containingScopeQualifiers = getNameQualifiers(containingFunction->getLookupParent());
+    // type must always be included, now check whether the other scopes have to be explicitly named
+    // it's not neccessary if the current function scope is also inside that namespace/class
+    Twine buffer = type->getName();
+    for (uint i = 1; i < containingScopeQualifiers.size(); ++i) {
+        const DeclContext* ctx = containingScopeQualifiers[i];
+        assert(ctx->isNamespace() || ctx->isRecord());
+        if (!contains(containingScopeQualifiers, [ctx](const DeclContext* dc) { return ctx->Equals(dc); })) {
+            if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
+                buffer = record->getName() + "::" + qualifiedName;
+            }
+            else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
+                buffer = ns->getName() + "::" + qualifiedName;
             }
             else {
-                auto named = dyn_cast<NamedDecl>(ctx);
-                if (verbose) {
-                    outs() << "Don't need to add " << (named ? named->getName() : "nullptr") << " to lookup\n";
-                }
+                // this should never happen
+                outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*)ctx << "\n";
+                printParentContexts(type);
             }
         }
-        return buffer.str();
+        else {
+            auto named = dyn_cast<NamedDecl>(ctx);
+            if (verbose) {
+                outs() << "Don't need to add " << (named ? named->getName() : "nullptr") << " to lookup\n";
+            }
+        }
     }
+    return buffer.str();
 }
 
 std::vector<const clang::DeclContext*> ClangUtils::getNameQualifiers(const clang::DeclContext* ctx) {
