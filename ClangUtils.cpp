@@ -5,7 +5,8 @@
 using namespace clang;
 using namespace llvm;
 
-static void collectAllUsingNamespaceDirectivesHelper(const clang::DeclContext* ctx, std::vector<UsingDirectiveDecl*>& buf, SourceLocation callLocation, const SourceManager& sm) {
+static void collectAllUsingNamespaceDeclsHelper(const clang::DeclContext* ctx, std::vector<UsingDirectiveDecl*>& buf,
+        SourceLocation callLocation, const SourceManager& sm) {
     if (!ctx) {
         return;
     }
@@ -13,17 +14,17 @@ static void collectAllUsingNamespaceDirectivesHelper(const clang::DeclContext* c
         //(*it)->dump(outs());
         if (sm.isBeforeInTranslationUnit((*it)->getLocStart(), callLocation)) {
             buf.push_back(*it);
-        }
-        else {
+        } else {
             //outs() << "Using directive is after call location, not adding!\n";
         }
     }
-    collectAllUsingNamespaceDirectivesHelper(ctx->getLookupParent(), buf,  callLocation, sm);
+    collectAllUsingNamespaceDeclsHelper(ctx->getLookupParent(), buf, callLocation, sm);
 }
 
-static std::vector<UsingDirectiveDecl*> collectAllUsingNamespaceDirectives(const clang::DeclContext* ctx, SourceLocation callLocation, const SourceManager& sm) {
+static std::vector<UsingDirectiveDecl*> collectAllUsingNamespaceDecls(const clang::DeclContext* ctx,
+        SourceLocation callLocation, const SourceManager& sm) {
     std::vector<UsingDirectiveDecl*> ret;
-    collectAllUsingNamespaceDirectivesHelper(ctx, ret, callLocation, sm);
+    collectAllUsingNamespaceDeclsHelper(ctx, ret, callLocation, sm);
     return ret;
 }
 
@@ -31,8 +32,8 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
         const clang::DeclContext* containingFunction, const clang::CallExpr* callExpression, bool verbose,
         clang::ASTContext* ast) {
     auto targetTypeQualifiers = getNameQualifiers(type);
-    printParentContexts(type);
-    outs() << ", name qualifiers: " << targetTypeQualifiers.size() << "\n";
+    //printParentContexts(type);
+    //outs() << ", name qualifiers: " << targetTypeQualifiers.size() << "\n";
     assert(type->Equals(targetTypeQualifiers[0]));
     // TODO template arguments
 
@@ -41,7 +42,7 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
         return type->getName();
     }
 
-    auto usingDirectives = collectAllUsingNamespaceDirectives(containingFunction,
+    auto usingNamespaceDecls = collectAllUsingNamespaceDecls(containingFunction,
             sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
 
     // have to qualify, but check the current scope first
@@ -59,11 +60,17 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
         auto isUsingNamespace = [ctx](UsingDirectiveDecl* ud) {
             return ud->getNominatedNamespace()->Equals(ctx);
         };
-        if (contains(containingScopeQualifiers, declContextEquals) || contains(usingDirectives, isUsingNamespace)) {
-            auto named = dyn_cast<NamedDecl>(ctx);
-            if (verbose) {
-                outs() << "Don't need to add " << (named ? named->getName() : "nullptr") << " to lookup\n";
+        if (contains(containingScopeQualifiers, declContextEquals)) {
+            auto named = cast<NamedDecl>(ctx);
+            if (verbose || 1) {
+                outs() << "Don't need to add " << named->getQualifiedNameAsString() << " to lookup\n";
             }
+        } else if (contains(usingNamespaceDecls, isUsingNamespace)) {
+            auto ns = cast<NamespaceDecl>(ctx);
+            if (verbose || 1) {
+                outs() << "Ending qualifier search: using namespace for '" << ns->getQualifiedNameAsString() << "' exists\n";
+            }
+            break;
         } else {
             if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
                 buffer = record->getName().str() + "::" + buffer;
