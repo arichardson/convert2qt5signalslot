@@ -48,7 +48,8 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
     auto containingScopeQualifiers = getNameQualifiers(containingFunction->getLookupParent());
     // type must always be included, now check whether the other scopes have to be explicitly named
     // it's not neccessary if the current function scope is also inside that namespace/class
-    Twine buffer = type->getName();
+    // for some reason twine crashes here, use std::string
+    std::string buffer = type->getName();
     for (uint i = 1; i < targetTypeQualifiers.size(); ++i) {
         const DeclContext* ctx = targetTypeQualifiers[i];
         assert(ctx->isNamespace() || ctx->isRecord());
@@ -65,9 +66,9 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
             }
         } else {
             if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
-                buffer = record->getName() + "::" + buffer;
+                buffer = record->getName().str() + "::" + buffer;
             } else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
-                buffer = ns->getName() + "::" + buffer;
+                buffer = ns->getName().str() + "::" + buffer;
             } else {
                 // this should never happen
                 outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*) ctx << "\n";
@@ -75,7 +76,7 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
             }
         }
     }
-    return buffer.str();
+    return buffer;
 }
 
 std::vector<const clang::DeclContext*> ClangUtils::getNameQualifiers(const clang::DeclContext* ctx) {
