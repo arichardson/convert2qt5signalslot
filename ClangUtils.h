@@ -130,7 +130,7 @@ static inline bool contains(const Container& c, Predicate p) {
  *  TODO: handle using directives
  */
 std::string getLeastQualifiedName(const clang::CXXRecordDecl* type, const clang::DeclContext* containingFunction,
-        const clang::CallExpr* callExpression, bool verbose);
+        const clang::CallExpr* callExpression, bool verbose, clang::ASTContext* ast);
 
 } // namespace ClangUtils
 

@@ -380,7 +380,7 @@ static std::string castSignalToMemberFunctionIfNullPtr(ConnectCallMatcher::Param
         assert(p.slotLiteral);
         StringRef parameters = signalSlotParameters(p.slotLiteral); // TODO suggest correct parameters
         return "static_cast<void(" + getLeastQualifiedName(p.sender->getBestDynamicClassType(),
-                p.containingFunction, p.call, verboseMode) + "::*)(" + parameters.str() + ")>(" + signalString + ")";
+                p.containingFunction, p.call, verboseMode, ctx) + "::*)(" + parameters.str() + ")>(" + signalString + ")";
     }
     else {
         return signalString;
@@ -646,7 +646,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
         }
     }
 
-    std::string qualifiedName = getLeastQualifiedName(type, p.containingFunction, p.call, verboseMode);
+    std::string qualifiedName = getLeastQualifiedName(type, p.containingFunction, p.call, verboseMode, &currentCompilerInstance->getASTContext());
 
 
     if (verboseMode) {
