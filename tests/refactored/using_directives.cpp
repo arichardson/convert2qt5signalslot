@@ -8,6 +8,12 @@ public:
 Q_SIGNALS:
     void sig();
     void sig(int);
+public:
+    class InnerClass : public QObject {
+        // Q_OBJECT // moc disallows this for inner classes
+    public:
+        InnerClass() = default;
+    };
 };
 
 namespace Nested {
@@ -23,6 +29,7 @@ Q_SIGNALS:
 }
 
 static Namespace::Foo* foo = new Namespace::Foo();
+static Namespace::Foo::InnerClass* inner= new Namespace::Foo::InnerClass();
 static Namespace::Nested::Bar* bar = new Namespace::Nested::Bar();
 
 namespace UsingNamespace {
@@ -36,6 +43,8 @@ namespace UsingNamespace {
                 bar, &Nested::Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Nested::Bar::*)(int)>(&Nested::Bar::sig),
                 foo, &Foo::deleteLater);
+        QObject::connect(inner, &Foo::InnerClass::objectNameChanged,
+                inner, &Foo::InnerClass::deleteLater);
     }
 }
 namespace UsingNamespaceAfterFunc {
@@ -49,6 +58,8 @@ namespace UsingNamespaceAfterFunc {
                 bar, &Namespace::Nested::Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Namespace::Nested::Bar::*)(int)>(&Namespace::Nested::Bar::sig),
                 foo, &Namespace::Foo::deleteLater);
+        QObject::connect(inner, &Namespace::Foo::InnerClass::objectNameChanged,
+                inner, &Namespace::Foo::InnerClass::deleteLater);
     }
     using namespace Namespace;
 }
@@ -63,6 +74,8 @@ namespace UsingNested {
                 bar, &Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Bar::*)(int)>(&Bar::sig),
                 foo, &Namespace::Foo::deleteLater);
+        QObject::connect(inner, &Namespace::Foo::InnerClass::objectNameChanged,
+                inner, &Namespace::Foo::InnerClass::deleteLater);
     }
 }
 namespace UsingNamespaceAndNested {
@@ -77,6 +90,8 @@ namespace UsingNamespaceAndNested {
                 bar, &Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Bar::*)(int)>(&Bar::sig),
                 foo, &Foo::deleteLater);
+        QObject::connect(inner, &Foo::InnerClass::objectNameChanged,
+                inner, &Foo::InnerClass::deleteLater);
     }
 }
 namespace UsingFoo {
@@ -90,6 +105,8 @@ namespace UsingFoo {
                 bar, &Namespace::Nested::Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Namespace::Nested::Bar::*)(int)>(&Namespace::Nested::Bar::sig),
                 foo, &Foo::deleteLater);
+        QObject::connect(inner, &Foo::InnerClass::objectNameChanged,
+                inner, &Foo::InnerClass::deleteLater);
     }
 }
 namespace UsingBar {
@@ -103,6 +120,8 @@ namespace UsingBar {
                 bar, &Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Bar::*)(int)>(&Bar::sig),
                 foo, &Namespace::Foo::deleteLater);
+        QObject::connect(inner, &Namespace::Foo::InnerClass::objectNameChanged,
+                inner, &Namespace::Foo::InnerClass::deleteLater);
     }
 }
 namespace UsingFooAfterFunc {
@@ -116,6 +135,8 @@ namespace UsingFooAfterFunc {
                 bar, &Namespace::Nested::Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Namespace::Nested::Bar::*)(int)>(&Namespace::Nested::Bar::sig),
                 foo, &Namespace::Foo::deleteLater);
+        QObject::connect(inner, &Namespace::Foo::InnerClass::objectNameChanged,
+                inner, &Namespace::Foo::InnerClass::deleteLater);
     }
     using Namespace::Foo;
 }
@@ -130,6 +151,8 @@ namespace UsingBarAfterFunc {
                 bar, &Namespace::Nested::Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Namespace::Nested::Bar::*)(int)>(&Namespace::Nested::Bar::sig),
                 foo, &Namespace::Foo::deleteLater);
+        QObject::connect(inner, &Namespace::Foo::InnerClass::objectNameChanged,
+                inner, &Namespace::Foo::InnerClass::deleteLater);
     }
     using Namespace::Nested::Bar;
 }
@@ -145,6 +168,8 @@ namespace UsingFooAndBar {
                 bar, &Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Bar::*)(int)>(&Bar::sig),
                 foo, &Foo::deleteLater);
+        QObject::connect(inner, &Foo::InnerClass::objectNameChanged,
+                inner, &Foo::InnerClass::deleteLater);
     }
 }
 namespace UsingFooAndBarAfterFunc {
@@ -158,6 +183,8 @@ namespace UsingFooAndBarAfterFunc {
                 bar, &Namespace::Nested::Bar::deleteLater);
         QObject::connect(bar, static_cast<void(Namespace::Nested::Bar::*)(int)>(&Namespace::Nested::Bar::sig),
                 foo, &Namespace::Foo::deleteLater);
+        QObject::connect(inner, &Namespace::Foo::InnerClass::objectNameChanged,
+                inner, &Namespace::Foo::InnerClass::deleteLater);
     }
     using Namespace::Foo;
     using Namespace::Nested::Bar;

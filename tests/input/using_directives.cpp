@@ -8,6 +8,12 @@ public:
 Q_SIGNALS:
     void sig();
     void sig(int);
+public:
+    class InnerClass : public QObject {
+        // Q_OBJECT // moc disallows this for inner classes
+    public:
+        InnerClass() = default;
+    };
 };
 
 namespace Nested {
@@ -23,6 +29,7 @@ Q_SIGNALS:
 }
 
 static Namespace::Foo* foo = new Namespace::Foo();
+static Namespace::Foo::InnerClass* inner= new Namespace::Foo::InnerClass();
 static Namespace::Nested::Bar* bar = new Namespace::Nested::Bar();
 
 namespace UsingNamespace {
@@ -36,6 +43,8 @@ namespace UsingNamespace {
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
                 SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
+                SLOT(deleteLater()));
     }
 }
 namespace UsingNamespaceAfterFunc {
@@ -48,6 +57,8 @@ namespace UsingNamespaceAfterFunc {
         QObject::connect(bar, SIGNAL(sig()),
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
+                SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
                 SLOT(deleteLater()));
     }
     using namespace Namespace;
@@ -63,6 +74,8 @@ namespace UsingNested {
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
                 SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
+                SLOT(deleteLater()));
     }
 }
 namespace UsingNamespaceAndNested {
@@ -77,6 +90,8 @@ namespace UsingNamespaceAndNested {
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
                 SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
+                SLOT(deleteLater()));
     }
 }
 namespace UsingFoo {
@@ -89,6 +104,8 @@ namespace UsingFoo {
         QObject::connect(bar, SIGNAL(sig()),
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
+                SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
                 SLOT(deleteLater()));
     }
 }
@@ -103,6 +120,8 @@ namespace UsingBar {
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
                 SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
+                SLOT(deleteLater()));
     }
 }
 namespace UsingFooAfterFunc {
@@ -115,6 +134,8 @@ namespace UsingFooAfterFunc {
         QObject::connect(bar, SIGNAL(sig()),
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
+                SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
                 SLOT(deleteLater()));
     }
     using Namespace::Foo;
@@ -129,6 +150,8 @@ namespace UsingBarAfterFunc {
         QObject::connect(bar, SIGNAL(sig()),
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
+                SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
                 SLOT(deleteLater()));
     }
     using Namespace::Nested::Bar;
@@ -145,6 +168,8 @@ namespace UsingFooAndBar {
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
                 SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
+                SLOT(deleteLater()));
     }
 }
 namespace UsingFooAndBarAfterFunc {
@@ -157,6 +182,8 @@ namespace UsingFooAndBarAfterFunc {
         QObject::connect(bar, SIGNAL(sig()),
                 bar, SLOT(deleteLater()));
         foo->connect(bar, SIGNAL(sig(int)),
+                SLOT(deleteLater()));
+        inner->connect(inner, SIGNAL(objectNameChanged(QString)),
                 SLOT(deleteLater()));
     }
     using Namespace::Foo;
