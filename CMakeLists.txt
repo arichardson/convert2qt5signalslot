@@ -37,7 +37,9 @@ set(REQUIRED_CLANG_LIBS
 	${CLANG_CLANGTOOLING_LIB}
 )
 
-add_library(converterObjs OBJECT Qt5SignalSlotSyntaxConverter.cpp)
+add_definitions(${LLVM_CFLAGS})
+
+add_library(converterObjs OBJECT Qt5SignalSlotSyntaxConverter.cpp ClangUtils.cpp)
 
 add_executable(convert2qt5signalslot $<TARGET_OBJECTS:converterObjs> main.cpp)
 target_link_libraries(convert2qt5signalslot ${REQUIRED_CLANG_LIBS} ${REQUIRED_LLVM_LIBS})

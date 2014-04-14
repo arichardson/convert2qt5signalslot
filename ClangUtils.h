@@ -4,6 +4,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/StringRef.h>
 #include <clang/AST/Stmt.h>
+#include <clang/AST/Expr.h>
 #include <clang/AST/ASTContext.h>
 #include <clang/Lex/Lexer.h>
 
@@ -96,33 +97,10 @@ static inline clang::SourceRange sourceRangeForStmt(const clang::Stmt* stmt, cla
 /** Checks whether @p cls inherits from a class named @p name with the specified access (public, private, protected, none)
  *
  * @param name is the name of the class (without template parameters). E.g. "QObject" */
-static inline bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* name,
-        clang::AccessSpecifier access = clang::AS_public) {
-    for (auto it = cls->bases_begin(); it != cls->bases_end(); ++it) {
-        clang::QualType type = it->getType();
-        auto baseDecl = type->getAsCXXRecordDecl(); // will always succeed
-        assert(baseDecl);
-        // llvm::outs() << "Checking " << cls->getName() << " for " << name << "\n";
-        if (it->getAccessSpecifier() == access && baseDecl->getName() == name) {
-            return true;
-        }
-        // now check the base classes for the base class
-        if (inheritsFrom(baseDecl, name, access)) {
-            return true;
-        }
-    }
-    return false;
-}
+bool inheritsFrom(const clang::CXXRecordDecl* cls, const char* name, clang::AccessSpecifier access = clang::AS_public);
 
 /** Same as ClangUtils::inheritsFrom(), but also returns true if @p cls is of type @p name */
-static inline bool isOrInheritsFrom(const clang::CXXRecordDecl* cls, const char* name,
-        clang::AccessSpecifier access = clang::AS_public) {
-    // llvm::outs() << "Checking " << cls->getName() << " for " << name << "\n";
-    if (cls->getName() == name) {
-        return true;
-    }
-    return inheritsFrom(cls, name, access);
-}
+bool isOrInheritsFrom(const clang::CXXRecordDecl* cls, const char* name, clang::AccessSpecifier access = clang::AS_public);
 
 /** returns the parent contexts of @p ctx (including @p ctx). First entry will be ctx and the last will be a TranslationUnitDecl* */
 static inline std::vector<const clang::DeclContext*> getParentContexts(const clang::DeclContext* ctx) {
@@ -134,54 +112,11 @@ static inline std::vector<const clang::DeclContext*> getParentContexts(const cla
     return ret;
 }
 
-static inline  void printParentContexts(const clang::DeclContext* base) {
-    for (auto ctx : getParentContexts(base)) {
-        llvm::outs() << "::";
-        if (auto record = llvm::dyn_cast<clang::CXXRecordDecl>(ctx)) {
-            llvm::outs() << record->getName() << "(record)";
-        }
-        else if (auto ns = llvm::dyn_cast<clang::NamespaceDecl>(ctx)) {
-            llvm::outs() << ns->getName() << "(namespace)";
-        }
-        else if (auto func = llvm::dyn_cast<clang::FunctionDecl>(ctx)) {
-            if (llvm::isa<clang::CXXConstructorDecl>(ctx)) {
-                llvm::outs() << "(ctor)";
-            }
-            else if (llvm::isa<clang::CXXDestructorDecl>(ctx)) {
-                llvm::outs() << "(dtor)";
-            }
-            else if (llvm::isa<clang::CXXConversionDecl>(ctx)) {
-                llvm::outs() << "(conversion)";
-            }
-            else {
-                llvm::outs() << func->getName() << "(func)";
-            }
-        }
-        else if (llvm::dyn_cast<clang::TranslationUnitDecl>(ctx)) {
-            llvm::outs() << "(translation unit)";
-        }
-        else {
-            llvm::outs() << "unknown(" << ctx->getDeclKindName() << ")";
-        }
-    }
-}
+/** Prints the parent contexts of @p base to llvm::outs() */
+void printParentContexts(const clang::DeclContext* base);
 
-static inline std::vector<const clang::DeclContext*> getNameQualifiers(const clang::DeclContext* ctx) {
-    std::vector<const clang::DeclContext*> ret;
-    while (ctx) {
-        // only namespaces and classes/structs/unions add additional qualifiers to the name lookup
-        if (auto ns = llvm::dyn_cast<clang::NamespaceDecl>(ctx)) {
-            if (!ns->isAnonymousNamespace()) {
-                ret.push_back(ns);
-            }
-        }
-        else if (llvm::isa<clang::CXXRecordDecl>(ctx)) {
-            ret.push_back(ctx);
-        }
-        ctx = ctx->getLookupParent();
-    }
-    return ret;
-}
+/** @return a vector containing all CXXRecordDecl and NamespaceDecl (non-anonymous) that are used for qualifying the name for @p ctx */
+std::vector<const clang::DeclContext*> getNameQualifiers(const clang::DeclContext* ctx);
 
 template<class Container, class Predicate>
 static inline bool contains(const Container& c, Predicate p) {
@@ -194,52 +129,8 @@ static inline bool contains(const Container& c, Predicate p) {
  *  This removes any namespace/class qualifiers that are already part of current function scope
  *  TODO: handle using directives
  */
-static inline std::string getLeastQualifiedName(const clang::CXXRecordDecl* type, const clang::DeclContext* containingFunction,
-        const clang::CallExpr* callExpression, bool verbose) {
-    using namespace clang;
-    using namespace llvm;
-    auto targetTypeQualifiers = getNameQualifiers(type);
-    assert(type->Equals(targetTypeQualifiers[0]));
-    std::string qualifiedName;
-
-    // TODO template arguments
-
-    if (targetTypeQualifiers.size() < 2) {
-        // no need to qualify the name if there is no surrounding context
-        return type->getName();
-    }
-    else {
-        // have to qualify, but check the current scope first
-        auto containingScopeQualifiers = getNameQualifiers(containingFunction->getLookupParent());
-        // type must always be included, now check whether the other scopes have to be explicitly named
-        // it's not neccessary if the current function scope is also inside that namespace/class
-        Twine buffer = type->getName();
-        for (uint i = 1; i < containingScopeQualifiers.size(); ++i) {
-            const DeclContext* ctx = containingScopeQualifiers[i];
-            assert(ctx->isNamespace() || ctx->isRecord());
-            if (!contains(containingScopeQualifiers, [ctx](const DeclContext* dc) { return ctx->Equals(dc); })) {
-                if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
-                    buffer = record->getName() + "::" + qualifiedName;
-                }
-                else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
-                    buffer = ns->getName() + "::" + qualifiedName;
-                }
-                else {
-                    // this should never happen
-                    outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*)ctx << "\n";
-                    printParentContexts(type);
-                }
-            }
-            else {
-                auto named = dyn_cast<NamedDecl>(ctx);
-                if (verbose) {
-                    outs() << "Don't need to add " << (named ? named->getName() : "nullptr") << " to lookup\n";
-                }
-            }
-        }
-        return buffer.str();
-    }
-}
+std::string getLeastQualifiedName(const clang::CXXRecordDecl* type, const clang::DeclContext* containingFunction,
+        const clang::CallExpr* callExpression, bool verbose);
 
 } // namespace ClangUtils
 
