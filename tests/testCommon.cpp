@@ -121,8 +121,10 @@ int testMain(std::string input, std::string expected, int found, int converted, 
     StringList resultLines;
     boost::split(resultLines, input, isNewline);
     auto lineCount = std::min(resultLines.size(), expectedLines.size());
+    uint differences = 0;
     for (size_t i = 0; i < lineCount; ++i) {
         if (expectedLines[i] != resultLines[i]) {
+            differences++;
             outs() << (i + 1) << " expected:";
             colouredOut(llvm::raw_ostream::GREEN).writeEscaped(expectedLines[i]) << "\n";
             outs() << (i + 1) << " result  :";
@@ -135,15 +137,17 @@ int testMain(std::string input, std::string expected, int found, int converted, 
     if (resultLines.size() > lineCount) {
         outs() << "Additional lines in result:\n";
         for (size_t i = lineCount; i < resultLines.size(); ++i) {
+            differences++;
             colouredOut(llvm::raw_ostream::RED) << i << " = '" << resultLines[i] << "'\n";
         }
     }
     if (expectedLines.size() > lineCount) {
         outs() << "Additional lines in expected:\n";
         for (size_t i = lineCount; i < expectedLines.size(); ++i) {
+            differences++;
             colouredOut(llvm::raw_ostream::RED) << i << " = '" << expectedLines[i] << "'\n";
         }
     }
-    colouredOut(llvm::raw_ostream::RED) << "\nFailed!\n";
+    colouredOut(llvm::raw_ostream::RED) << "\nFailed with " << differences << " differences\n";
     return 1;
 }
