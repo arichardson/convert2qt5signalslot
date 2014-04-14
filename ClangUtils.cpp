@@ -12,11 +12,11 @@ static void collectAllUsingNamespaceDeclsHelper(const clang::DeclContext* ctx, s
     }
     for (auto it = ctx->using_directives_begin(); it != ctx->using_directives_end(); ++it) {
         //(*it)->dump(outs());
-        if (sm.isBeforeInTranslationUnit((*it)->getLocStart(), callLocation)) {
-            buf.push_back(*it);
-        } else {
+        if (!sm.isBeforeInTranslationUnit((*it)->getLocStart(), callLocation)) {
             //outs() << "Using directive is after call location, not adding!\n";
+            continue;
         }
+        buf.push_back(*it);
     }
     collectAllUsingNamespaceDeclsHelper(ctx->getLookupParent(), buf, callLocation, sm);
 }
@@ -25,6 +25,36 @@ static std::vector<UsingDirectiveDecl*> collectAllUsingNamespaceDecls(const clan
         SourceLocation callLocation, const SourceManager& sm) {
     std::vector<UsingDirectiveDecl*> ret;
     collectAllUsingNamespaceDeclsHelper(ctx, ret, callLocation, sm);
+    return ret;
+}
+
+static void collectAllUsingDeclsHelper(const clang::DeclContext* ctx, std::vector<UsingShadowDecl*>& buf,
+        SourceLocation callLocation, const SourceManager& sm) {
+    if (!ctx) {
+        return;
+    }
+    for (auto it = ctx->decls_begin(); it != ctx->decls_end(); ++it) {
+        auto usingDecl = dyn_cast<UsingDecl>(*it);
+        if (!usingDecl) {
+            continue;
+        }
+        if (!sm.isBeforeInTranslationUnit(usingDecl->getLocStart(), callLocation)) {
+            //outs() << "Using decl is after call location, not adding!\n";
+            continue;
+        }
+        //usingDecl->dump(outs());
+        for (auto shadowIt = usingDecl->shadow_begin(); shadowIt != usingDecl->shadow_end(); shadowIt++) {
+            //(*shadowIt)->dump(outs());
+            buf.push_back(*shadowIt);
+        }
+    }
+    collectAllUsingDeclsHelper(ctx->getLookupParent(), buf, callLocation, sm);
+}
+
+static std::vector<UsingShadowDecl*> collectAllUsingDecls(const clang::DeclContext* ctx, SourceLocation callLocation,
+        const SourceManager& sm) {
+    std::vector<UsingShadowDecl*> ret;
+    collectAllUsingDeclsHelper(ctx, ret, callLocation, sm);
     return ret;
 }
 
@@ -37,8 +67,23 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
     assert(type->Equals(targetTypeQualifiers[0]));
     // TODO template arguments
 
+
     if (targetTypeQualifiers.size() < 2) {
         // no need to qualify the name if there is no surrounding context
+        return type->getName();
+    }
+    auto usingDecls = collectAllUsingDecls(containingFunction,
+            sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
+
+    auto isUsingType = [type](UsingShadowDecl* usd) {
+        auto cxxRecord = dyn_cast<CXXRecordDecl>(usd->getTargetDecl());
+        return cxxRecord && type->Equals(cxxRecord);
+    };
+    if (contains(usingDecls, isUsingType)) {
+        if (verbose) {
+            outs() << "Using decl for " << type->getQualifiedNameAsString() << " exists, not qualifying\n";
+        }
+        // no need to qualify the name if there is a using decl for the current type
         return type->getName();
     }
 
@@ -57,18 +102,30 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
         auto declContextEquals = [ctx](const DeclContext* dc) {
             return ctx->Equals(dc);
         };
-        auto isUsingNamespace = [ctx](UsingDirectiveDecl* ud) {
+        auto isUsingNamespaceForContext = [ctx](UsingDirectiveDecl* ud) {
             return ud->getNominatedNamespace()->Equals(ctx);
+        };
+        auto isUsingDeclForContext = [ctx](UsingShadowDecl* usd) {
+            auto usedCtx = dyn_cast<DeclContext>(usd->getTargetDecl());
+            return usedCtx && usedCtx->Equals(ctx);
         };
         if (contains(containingScopeQualifiers, declContextEquals)) {
             auto named = cast<NamedDecl>(ctx);
-            if (verbose || 1) {
+            if (verbose) {
                 outs() << "Don't need to add " << named->getQualifiedNameAsString() << " to lookup\n";
             }
-        } else if (contains(usingNamespaceDecls, isUsingNamespace)) {
+        } else if (contains(usingNamespaceDecls, isUsingNamespaceForContext)) {
             auto ns = cast<NamespaceDecl>(ctx);
-            if (verbose || 1) {
+            if (verbose) {
                 outs() << "Ending qualifier search: using namespace for '" << ns->getQualifiedNameAsString() << "' exists\n";
+            }
+            break;
+        } else if (contains(usingDecls, isUsingDeclForContext)) {
+            auto named = cast<NamedDecl>(ctx);
+            // this is the last one we have to add since a using directive exists
+            buffer = named->getName().str() + "::" + buffer;
+            if (verbose) {
+                outs() << "Ending qualifier search: using for '" << named->getQualifiedNameAsString() << "' exists\n";
             }
             break;
         } else {
