@@ -23,15 +23,15 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type, 
     // type must always be included, now check whether the other scopes have to be explicitly named
     // it's not neccessary if the current function scope is also inside that namespace/class
     Twine buffer = type->getName();
-    for (uint i = 1; i < containingScopeQualifiers.size(); ++i) {
-        const DeclContext* ctx = containingScopeQualifiers[i];
+    for (uint i = 1; i < targetTypeQualifiers.size(); ++i) {
+        const DeclContext* ctx = targetTypeQualifiers[i];
         assert(ctx->isNamespace() || ctx->isRecord());
         if (!contains(containingScopeQualifiers, [ctx](const DeclContext* dc) { return ctx->Equals(dc); })) {
             if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
-                buffer = record->getName() + "::" + qualifiedName;
+                buffer = record->getName() + "::" + buffer;
             }
             else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
-                buffer = ns->getName() + "::" + qualifiedName;
+                buffer = ns->getName() + "::" + buffer;
             }
             else {
                 // this should never happen
