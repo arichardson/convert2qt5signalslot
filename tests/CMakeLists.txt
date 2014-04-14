@@ -31,7 +31,7 @@ converter_unit_test(MissingMocInclude)
 converter_unit_test(NullptrCustomization)
 converter_unit_test(SmartPointer)
 converter_unit_test(QQuickItem)
-
+converter_unit_test(UsingDirectives)
 
 set(CMAKE_AUTOMOC ON)
 
@@ -51,4 +51,5 @@ build_old_and_new(smart_pointer)
 build_old_and_new(qquickitem)
 target_link_libraries(qquickitem-qt4style Qt5::Quick)
 target_link_libraries(qquickitem-qt5style Qt5::Quick)
+build_old_and_new(using_directives)
 # This one does not work, there is no signal = nullptr overload for QObject::disconnect
