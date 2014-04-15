@@ -588,13 +588,12 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     DeclarationName lookupName(pp->getIdentifierInfo(methodName));
 
 
-    // this doesn't work
     // TODO: how to get a scope for lookup
-    //Scope* scope = sema->getScopeForContext();
-
+    // looks like we have to fill the Scope* manually
 
     //outs() << "Looking up " << methodName << " in " << type->getQualifiedNameAsString() << "\n";
     LookupResult lookup(*sema, lookupName, sourceLocationBeforeStmt(p.call, &currentCompilerInstance->getASTContext()), Sema::LookupMemberName);
+    lookup.suppressDiagnostics(); // don't output errors if the method could not be found!
     // setting inUnqualifiedLookup to true makes sure that base classes are searched too
     sema->LookupQualifiedName(lookup, const_cast<DeclContext*>(type->getPrimaryContext()), true);
     //outs() << "lr after lookup: ";
