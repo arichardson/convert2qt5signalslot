@@ -75,8 +75,9 @@ static inline clang::SourceLocation sourceLocationAfterStmt(const clang::Stmt* s
     clang::SourceLocation endLoc = stmt->getLocEnd();
     // if it is a macro expansion sets endLoc to the location where the macro is being expanded, not where it is defined
     // i.e. in this case from qobjectdefs.h -> file that is refactored
-    clang::Lexer::isAtEndOfMacroExpansion(endLoc, ctx->getSourceManager(), ctx->getLangOpts(), &endLoc);
-
+    if (endLoc.isMacroID()) {
+        clang::Lexer::isAtEndOfMacroExpansion(endLoc, ctx->getSourceManager(), ctx->getLangOpts(), &endLoc);
+    }
     auto ret = clang::Lexer::getLocForEndOfToken(stmt->getLocEnd(), 0, ctx->getSourceManager(), ctx->getLangOpts());
     return ret.getLocWithOffset(offset);
 }
@@ -85,7 +86,11 @@ static inline clang::SourceLocation sourceLocationBeforeStmt(const clang::Stmt* 
     clang::SourceLocation beginLoc = stmt->getLocStart();
     // if it is a macro expansion sets beginLoc to the location where the macro is being expanded, not where it is defined
     // i.e. in this case from qobjectdefs.h -> file that is refactored
-    clang::Lexer::isAtStartOfMacroExpansion(beginLoc, ctx->getSourceManager(), ctx->getLangOpts(), &beginLoc);
+    if (beginLoc.isMacroID()) {
+        //llvm::outs() << "Was macro id:" << beginLoc.printToString(ctx->getSourceManager());
+        (void)clang::Lexer::isAtStartOfMacroExpansion(beginLoc, ctx->getSourceManager(), ctx->getLangOpts(), &beginLoc);
+        //llvm::outs() << ", location now: " << beginLoc.printToString(ctx->getSourceManager()) << "\n";
+    }
     return beginLoc.getLocWithOffset(offset);
 }
 
