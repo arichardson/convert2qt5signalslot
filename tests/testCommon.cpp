@@ -65,6 +65,7 @@ bool codeCompiles(const std::string& code, const AdditionalFiles& additionalFile
 }
 
 int testMain(std::string input, std::string expected, int found, int converted, const std::vector<const char*>& converterOptions) {
+    llvm::sys::PrintStackTraceOnErrorSignal();
     StringList refactoringFiles { FILE_NAME };
     MatchFinder matchFinder;
     Replacements replacements;
