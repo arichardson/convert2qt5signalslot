@@ -1,4 +1,6 @@
 #include "testCommon.h"
+#include "config-tests.h"
+
 
 #include "../Qt5SignalSlotSyntaxConverter.h"
 #include "../ClangUtils.h"
@@ -39,7 +41,7 @@ static const auto isNewline = [](char c) {return c == '\n';};
 
 static bool runTool(clang::FrontendAction *toolAction, const std::string code, const AdditionalFiles& additionalFiles, const std::vector<std::string>& extraOptions) {
     static const std::vector<const char*> qt5CompileDefs = { QT5_REQUIRED_COMPILER_FLAGS };
-    std::vector<std::string> commands { "clang", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR };
+    std::vector<std::string> commands { "clang", "-v", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR, "-I", CLANG_BUILTIN_INCLUDES_PATH};
     for (const auto& opt : extraOptions) {
         commands.push_back(opt);
     }
