@@ -30,5 +30,6 @@ Known problems
 ###stddef.h not found
 
 If it complains that stddef.h is not found you should make sure that the compiler builtin headers are found in `$PREFIX/lib/clang/<version>/include`.
-If that is not the case you can do e.g. `ln -s /usr/lib64/clang /usr/local/lib64/clang`
+If that is not the case you can do e.g. `ln -s /usr/lib64/clang $PREFIX/lib/clang`. Note that clang tools always search in `lib` even if the
+distribution uses `lib64`.
 
