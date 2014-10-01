@@ -60,5 +60,3 @@ int main() {
     QObject::disconnect(stdSharedPtr.get(), static_cast<void(QObject::*)()>(nullptr), objQPointer.data(), &QObject::deleteLater);
     return 0;
 }
-
-#include "smart_pointer.moc"

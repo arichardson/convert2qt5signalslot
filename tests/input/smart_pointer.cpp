@@ -60,5 +60,3 @@ int main() {
     stdSharedPtr->disconnect(objQPointer, SLOT(deleteLater()));
     return 0;
 }
-
-#include "smart_pointer.moc"
