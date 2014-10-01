@@ -6,8 +6,7 @@ include(FeatureSummary)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake) 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-find_package(LLVM MODULE REQUIRED 3.4)
-find_package(Clang MODULE REQUIRED 3.4)
+find_package(Clang 3.4 MODULE REQUIRED)
 
 link_directories( ${LLVM_LIB_DIR} )
 include_directories(${CLANG_INCLUDE_DIRS})
@@ -22,27 +21,33 @@ else()
   message(FATAL_ERROR "Using unknown compiler, don't know how to activate C++11")
 endif()
 
-execute_process(COMMAND ${LLVM_CONFIG_EXECUTABLE} --libs support
-    OUTPUT_VARIABLE REQUIRED_LLVM_LIBS
-    OUTPUT_STRIP_TRAILING_WHITESPACE
+add_library(converter STATIC Qt5SignalSlotSyntaxConverter.cpp ClangUtils.cpp)
+target_link_libraries(converter
+  LLVMSupport
+  LLVMCore
+  LLVMObject
+  LLVMTarget
+  LLVMAnalysis
+  LLVMipa
+  LLVMTransformUtils
+  LLVMOption
+  Clang::Tooling
+  Clang::AST
+  Clang::ASTMatchers
+  Clang::Basic
+  Clang::Frontend
+  Clang::Lex
+  Clang::Sema
+  Clang::Rewrite
+  Clang::Analysis
+  Clang::Serialization
+  Clang::Parse
+  Clang::Driver
+  Clang::Edit
 )
 
-set(REQUIRED_CLANG_LIBS
-	${CLANG_CLANGBASIC_LIB}
-	${CLANG_CLANGFRONTEND_LIB}
-	${CLANG_CLANGASTMATCHERS_LIB}
-	${CLANG_CLANGLEX_LIB}
-	${CLANG_CLANGSEMA_LIB}
-	${CLANG_CLANGAST_LIB}
-	${CLANG_CLANGTOOLING_LIB}
-)
-
-add_definitions(${LLVM_CFLAGS})
-
-add_library(converterObjs OBJECT Qt5SignalSlotSyntaxConverter.cpp ClangUtils.cpp)
-
-add_executable(convert2qt5signalslot $<TARGET_OBJECTS:converterObjs> main.cpp)
-target_link_libraries(convert2qt5signalslot ${REQUIRED_CLANG_LIBS} ${REQUIRED_LLVM_LIBS})
+add_executable(convert2qt5signalslot main.cpp)
+target_link_libraries(convert2qt5signalslot converter)
 install(TARGETS convert2qt5signalslot RUNTIME DESTINATION bin)
 
 option(BUILD_TESTING "Whether to build the unit tests" OFF)

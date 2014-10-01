@@ -6,9 +6,12 @@
 using namespace clang::tooling;
 
 static llvm::cl::extrahelp common_help(CommonOptionsParser::HelpMessage);
+extern llvm::cl::OptionCategory clCategory;
+
+
 
 int main(int argc, const char* argv[]) {
-  CommonOptionsParser options(argc, argv);
+  CommonOptionsParser options(argc, argv, clCategory, "FPFPFPFPFP");
   llvm::sys::PrintStackTraceOnErrorSignal();
   RefactoringTool tool(options.getCompilations(), options.getSourcePathList());
   std::vector<std::string> refactoringFiles;
@@ -19,7 +22,8 @@ int main(int argc, const char* argv[]) {
   MatchFinder matchFinder;
   ConnectConverter converter(&tool.getReplacements(), refactoringFiles);
   converter.setupMatchers(&matchFinder);
-  int retVal = tool.runAndSave(newFrontendActionFactory(&matchFinder, converter.sourceCallback()));
+  auto frontend = newFrontendActionFactory(&matchFinder, converter.sourceCallback());
+  int retVal = tool.runAndSave(frontend.get()); // TODO: does this take ownership?
   llvm::outs() << "\n";
   converter.printStats();
   return retVal;

@@ -20,9 +20,9 @@ public:
     }
     void addQ_PRIVATE_SLOT_definition(clang::SourceLocation origLoc) {
 
-        llvm::MemoryBuffer* file = llvm::MemoryBuffer::getMemBuffer(Q_PRIVATE_SLOT_definition, "q_private_slot_defintion.moc");
+        std::unique_ptr<llvm::MemoryBuffer> file = llvm::MemoryBuffer::getMemBuffer(Q_PRIVATE_SLOT_definition, "q_private_slot_defintion.moc");
         clang::SourceLocation location = pp.getSourceManager().getFileLoc(origLoc);
-        pp.EnterSourceFile(pp.getSourceManager().createFileIDForMemBuffer(file, clang::SrcMgr::C_System), nullptr, location);
+        pp.EnterSourceFile(pp.getSourceManager().createFileID(std::move(file), clang::SrcMgr::C_System), nullptr, location);
     }
 protected:
     void MacroUndefined(const clang::Token& token, const clang::MacroDirective*) override {

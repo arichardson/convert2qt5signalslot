@@ -10,13 +10,13 @@ static void collectAllUsingNamespaceDeclsHelper(const clang::DeclContext* ctx, s
     if (!ctx) {
         return;
     }
-    for (auto it = ctx->using_directives_begin(); it != ctx->using_directives_end(); ++it) {
-        //(*it)->dump(outs());
-        if (!sm.isBeforeInTranslationUnit((*it)->getLocStart(), callLocation)) {
-            //outs() << "Using directive is after call location, not adding!\n";
+    for (auto&& udir : ctx->using_directives()) {
+        // udir->dump(outs());
+        if (!sm.isBeforeInTranslationUnit(udir->getLocStart(), callLocation)) {
+            // outs() << "Using directive is after call location, not adding!\n";
             continue;
         }
-        buf.push_back(*it);
+        buf.push_back(udir);
     }
     collectAllUsingNamespaceDeclsHelper(ctx->getLookupParent(), buf, callLocation, sm);
 }

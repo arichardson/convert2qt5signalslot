@@ -31,7 +31,7 @@ using namespace ClangUtils;
 using llvm::outs;
 using llvm::errs;
 
-static llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
+llvm::cl::OptionCategory clCategory("convert2qt5signalslot specific options");
 static llvm::cl::opt<bool> verboseMode("verbose", llvm::cl::cat(clCategory),
         llvm::cl::desc("Enable verbose output"), llvm::cl::init(false));
 static llvm::cl::opt<bool> convertNotFound("convert-not-found", llvm::cl::cat(clCategory),
@@ -700,7 +700,7 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
     outs() << "Handling file: " << Filename << "\n";
     currentCompilerInstance = &CI;
     Preprocessor& pp = currentCompilerInstance->getPreprocessor();
-    pp.addPPCallbacks(new ConverterPPCallbacks(pp));
+    pp.addPPCallbacks(llvm::make_unique<ConverterPPCallbacks>(pp));
     return true;
 }
 

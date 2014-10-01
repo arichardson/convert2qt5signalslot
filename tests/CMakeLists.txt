@@ -14,11 +14,12 @@ foreach(_flag ${Qt5Quick_EXECUTABLE_COMPILE_FLAGS})
 endforeach()
 configure_file(config-tests.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-tests.h @ONLY)
 
-add_library(testCommonObjs OBJECT testCommon.cpp) #only compile once, not for every test
+add_library(testCommon STATIC testCommon.cpp) #only compile once, not for every test
+target_link_libraries(testCommon converter)
 
 function(converter_unit_test _name)
-  add_executable(test-${_name} test${_name}.cpp $<TARGET_OBJECTS:testCommonObjs> $<TARGET_OBJECTS:converterObjs>)
-  target_link_libraries(test-${_name} ${REQUIRED_CLANG_LIBS} ${REQUIRED_LLVM_LIBS})
+  add_executable(test-${_name} test${_name}.cpp)
+  target_link_libraries(test-${_name} testCommon)
   add_test(NAME ${_name}-cxx COMMAND test-${_name})
 endfunction()
 
