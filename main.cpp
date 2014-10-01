@@ -11,7 +11,7 @@ extern llvm::cl::OptionCategory clCategory;
 
 
 int main(int argc, const char* argv[]) {
-  CommonOptionsParser options(argc, argv, clCategory, "FPFPFPFPFP");
+  CommonOptionsParser options(argc, argv, clCategory);
   llvm::sys::PrintStackTraceOnErrorSignal();
   RefactoringTool tool(options.getCompilations(), options.getSourcePathList());
   std::vector<std::string> refactoringFiles;
