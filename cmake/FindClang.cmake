@@ -91,7 +91,7 @@ else()
 endif()
 
 if(Clang_FOUND)
-  set(CLANG_LIBRARY_DIR ${LLVM_LIBRARY_DIR})
+  set(CLANG_LIBRARY_DIR ${LLVM_LIBRARY_DIRS})
   set(CLANG_INCLUDE_DIR ${LLVM_INCLUDE_DIR})
 
   # check whether llvm-config comes from an install prefix
@@ -108,6 +108,7 @@ if(Clang_FOUND)
 
   message(STATUS "Found Clang (LLVM version: ${LLVM_VERSION})")
   message(STATUS "  Include dirs:  ${CLANG_INCLUDE_DIR}")
+  message(STATUS "  Library dir:  ${CLANG_LIBRARY_DIR}")
   message(STATUS "  Libraries:     ${CLANG_LIBS}")
 else()
   if(Clang_FIND_REQUIRED)
