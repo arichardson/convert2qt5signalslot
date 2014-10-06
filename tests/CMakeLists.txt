@@ -50,6 +50,10 @@ simple_converter_unit_test(smart_pointer 36 36)
 simple_converter_unit_test(using_directives 50 50)
 simple_converter_unit_test(qquickitem 12 3)
 simple_converter_unit_test(overloads 17 17)
+simple_converter_unit_test(q_private_slot 9 9)
+add_test(NAME q_private_slot-qt4style COMMAND q_private_slot-qt4style) # make sure slots are called 10 times
+add_test(NAME q_private_slot-qt5style COMMAND q_private_slot-qt5style) # make sure slots are called 10 times
+
 simple_converter_unit_test(disconnect 11 11) # This one does not work, there is no signal = nullptr overload for QObject::disconnect
 
 converter_unit_test(MissingMocInclude)
