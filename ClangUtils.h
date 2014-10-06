@@ -8,14 +8,22 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/Lex/Lexer.h>
 
+#include <unistd.h>
+
 namespace ClangUtils {
 
 struct ColouredOStream {
-    ColouredOStream(llvm::raw_ostream& stream, llvm::raw_ostream::Colors colour, bool bold)
-            : stream(stream) {
-        stream.changeColor(colour, bold);
+    ColouredOStream(llvm::raw_ostream& stream, llvm::raw_ostream::Colors colour, bool bold, bool isTTY)
+            : stream(stream), isTTY(isTTY) {
+        if (isTTY) {
+            stream.changeColor(colour, bold);
+        }
     };
-    ~ColouredOStream() { stream.resetColor(); }
+    ~ColouredOStream() {
+        if (isTTY) {
+            stream.resetColor();
+        }
+    }
     template<typename T>
     ColouredOStream& operator<<(const T& value) {
         stream << value;
@@ -28,14 +36,17 @@ struct ColouredOStream {
 
 private:
     llvm::raw_ostream& stream;
+    bool isTTY;
 };
 
 static inline ColouredOStream colouredOut(llvm::raw_ostream::Colors colour, bool bold = true) {
-    return ColouredOStream(llvm::outs(), colour, bold);
+    static const bool isTTY = isatty(STDOUT_FILENO);
+    return ColouredOStream(llvm::outs(), colour, bold, isTTY);
 }
 
 static inline ColouredOStream colouredErr(llvm::raw_ostream::Colors colour, bool bold = true) {
-    return ColouredOStream(llvm::errs(), colour, bold);
+    static const bool isTTY = isatty(STDERR_FILENO);
+    return ColouredOStream(llvm::errs(), colour, bold, isTTY);
 }
 
 static inline bool isNullPointerConstant(const clang::Expr* expr, clang::ASTContext* ctx) {
