@@ -5,7 +5,17 @@
 
 static const char* Q_PRIVATE_SLOT_definition =
         "#undef Q_PRIVATE_SLOT\n"
-        "#define Q_PRIVATE_SLOT(d, signature) static_assert(#d && #signature, \"q_private_slot\");\n";
+        "#ifndef CONVERT_SIGNALS_TOKENPASTE\n"
+        "#define CONVERT_SIGNALS_TOKENPASTE2(x, y) x ## y\n"
+        "#define CONVERT_SIGNALS_TOKENPASTE(x, y) CONVERT_SIGNALS_TOKENPASTE2(x, y)\n"
+        "#endif\n"
+        "#define Q_PRIVATE_SLOT(d, signature) "
+        "void CONVERT_SIGNALS_TOKENPASTE(__qt_private_slot_, __LINE__)() {"
+        "    #d;"
+        "    class CONVERT_SIGNALS_TOKENPASTE(classdef_, __LINE__) {"
+        "        static signature;"
+        "    };"
+        "}\n";
 
 
 class ConverterPPCallbacks  : public clang::PPCallbacks {

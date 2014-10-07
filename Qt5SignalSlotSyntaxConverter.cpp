@@ -41,8 +41,6 @@ static llvm::cl::opt<bool> convertQQuickItemNotFound("convert-qquickitem-not-fou
 // not static so that it can be modified by the tests
 llvm::cl::opt<std::string> nullPtrString("nullptr", llvm::cl::init("nullptr"), llvm::cl::cat(clCategory),
         llvm::cl::desc("the string that will be used for a null pointer constant (Default is 'nullptr')"));
-static llvm::cl::list<std::string> skipPrefixes("skip-prefix", llvm::cl::cat(clCategory), llvm::cl::ZeroOrMore,
-        llvm::cl::desc("signals/slots with this prefix will be skipped (useful for Q_PRIVATE_SLOTS). May be passed multiple times.") );
 
 //http://stackoverflow.com/questions/11083066/getting-the-source-behind-clangs-ast
 static std::string expr2str(const Expr *d, ASTContext* ctx) {
@@ -65,11 +63,19 @@ static std::string expr2str(const Expr *d, ASTContext* ctx) {
  * then a null character, and then filename + linenumber
  *  the interesting part is from the second char to the first '(' character
  */
-static StringRef signalSlotName(const StringLiteral* literal) {
+static StringRef signalSlotName(const StringLiteral* literal, ConnectCallMatcher::ReplacementType* type) {
     StringRef bytes = literal->getString();
     size_t bracePos = bytes.find_first_of('(');
-    if (!(bytes[0] == '0' || bytes[0] == '1' || bytes[0] == '2') || bracePos == StringRef::npos) {
+    if (bracePos == StringRef::npos) {
         throw std::runtime_error(("invalid format of signal slot string: " + bytes).str());
+    }
+    if (bytes[0] == '1') {
+        *type = ConnectCallMatcher::ReplaceSlot;
+    } else if (bytes[0] == '2') {
+        *type = ConnectCallMatcher::ReplaceSignal;
+    } else {
+        *type = ConnectCallMatcher::ReplaceOther;
+        (errs() << "Connection string is neither signal nor slot:").write_escaped(bytes) << "\n";
     }
     return bytes.substr(1, bracePos - 1);
 }
@@ -573,21 +579,26 @@ void ConnectCallMatcher::tryRemovingMembercallArg(const ConnectCallMatcher::Para
     addReplacement(range, replacement, result.Context);
 }
 
+template<typename Output, typename Range, typename Callback, typename Separator>
+void join(Output* out, Range range, Separator separator, Callback callback) {
+    bool first = true;
+    for (auto it : range) {
+        if (!first) {
+            *out += separator;
+        } else {
+            first = false;
+        }
+        *out += callback(it);
+    }
+}
+
+
 std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* type,
         const StringLiteral* connectStr, const std::string& prepend, const ConnectCallMatcher::Parameters& p) {
 
-    StringRef methodName = signalSlotName(connectStr);
-    // TODO: handle Q_PRIVATE_SLOTS
-    for (const auto& prefix : skipPrefixes) {
-        if (methodName.startswith(prefix)) {
-            //e.g. in KDE all private slots start with _k_
-            //I don't know how to convert Q_PRIVATE_SLOTS, so allow an easy way of skipping them
-            throw SkipMatchException(("'" + methodName + "' starts with '" + prefix + "'").str());
-        }
-    }
+    ReplacementType methodType;
+    StringRef methodName = signalSlotName(connectStr, &methodType);
     DeclarationName lookupName(pp->getIdentifierInfo(methodName));
-
-
     // TODO: how to get a scope for lookup
     // looks like we have to fill the Scope* manually
 
@@ -625,7 +636,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
             return i;
         }
         else if (lookup.empty()) {
-            //TODO warning
+            //TODO warning unless private slot
             //outs() << "NOT FOUND!\n";
             return 0;
         }
@@ -637,6 +648,67 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     }();
 
     if (numFound == 0) {
+        // check for Q_PRIVATE_SLOTS
+        if (methodType == ReplaceSlot) {
+            std::vector<std::pair<CXXMethodDecl*, Stmt*>> privateSlotInfo;
+            for (auto method : type->methods()) {
+                //TODO: cache private slots? rather uncommon, so probably waste of programming time
+                // getName() asserts with operators or constructors
+                if (StringRef(method->getNameAsString()).startswith("__qt_private_slot_")) {
+                    // outs() << "Found private slot: " << method->getName() << " in " << type->getNameAsString() << "\n";
+                    assert(std::distance(method->decls_begin(), method->decls_end()) == 1);
+                    CXXRecordDecl* localClass = dyn_cast<CXXRecordDecl>(*method->decls_begin());
+                    assert(localClass);
+                    assert(std::distance(localClass->method_begin(), localClass->method_end()) == 1);
+                    CXXMethodDecl* privateSlotMethod = dyn_cast<CXXMethodDecl>(*localClass->method_begin());
+                    assert(privateSlotMethod && privateSlotMethod->isStatic());
+                    if (privateSlotMethod->getName() == methodName) {
+                        assert(method->hasBody());
+                        privateSlotInfo.push_back(std::make_pair(privateSlotMethod, method->getBody()));
+                    }
+
+                }
+            }
+            auto generateLambda = [&](CXXMethodDecl* method, Stmt* body) {
+                outs() << "Found private slot\n";
+                SmallString<128> result;
+                if (!prepend.empty()) {
+                    result = prepend + ", ";
+                }
+                result += "[&]("; // just capture everything
+                join(&result, method->params(), ", ", [](ParmVarDecl* param) {
+                    return Twine(param->getType().getAsString() + " " + param->getName()).str();
+                });
+                result += ") { ";
+                outs() << "stmt type: " << body->getStmtClassName() << " ";
+                assert(std::distance(body->child_begin(), body->child_end()) == 2); // 2 statements
+                body->dump(outs(), currentCompilerInstance->getSourceManager());
+                StringLiteral* literal = dyn_cast<StringLiteral>(*body->child_begin());
+                assert(literal);
+                if (!p.receiver->isImplicitCXXThis()) {
+                    result += expr2str(p.receiver, lastAstContext);
+                    result += "->";
+                }
+                result += literal->getString();
+                result += "->";
+                result += method->getName();
+                result += "(";
+                join(&result, method->params(), ", ", [](ParmVarDecl* param) {
+                    return param->getName();
+                });
+                result += "); }";
+                outs() << "PRIVATE RESULT: " << result << "\n";
+                return result.str().str();
+            };
+            if (privateSlotInfo.size() == 1) {
+                return generateLambda(privateSlotInfo[0].first, privateSlotInfo[0].second);
+            } else if (privateSlotInfo.size() > 1) {
+                outs() << "TODO: overloaded private slots!!\n";
+                // just use the first for now...
+                return generateLambda(privateSlotInfo[0].first, privateSlotInfo[0].second);
+            }
+        }
+
         if (!convertNotFound) {
             throw SkipMatchException(Twine("No method with name " + methodName + " found in " + type->getName()).str());
         }
@@ -646,7 +718,6 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     }
 
     std::string qualifiedName = getLeastQualifiedName(type, p.containingFunction, p.call, verboseMode, &currentCompilerInstance->getASTContext());
-
 
     if (verboseMode) {
         outs() << "scanned " << type->getQualifiedNameAsString() << " for overloads of " << methodName << ": " << numFound << " results\n";

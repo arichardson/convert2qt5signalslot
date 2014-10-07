@@ -2,6 +2,7 @@
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Tooling/Refactoring.h>
+#include <atomic>
 
 namespace clang {
     class Sema;
@@ -9,12 +10,17 @@ namespace clang {
 
 extern llvm::cl::opt<std::string> nullPtrString;
 
-#include <atomic>
 
 using clang::ast_matchers::MatchFinder;
 
 class ConnectCallMatcher : public MatchFinder::MatchCallback, public clang::tooling::SourceFileCallbacks {
 public:
+    enum ReplacementType {
+        ReplaceSignal,
+        ReplaceSlot,
+        ReplaceOther
+    };
+
     ConnectCallMatcher(clang::tooling::Replacements* reps, const std::vector<std::string>& files)
         : foundMatches(0), convertedMatches(0), skippedMatches(0), failedMatches(0), replacements(reps),
           refactoringFiles(files) {}
@@ -26,7 +32,7 @@ public:
     void printStats() const;
     struct Parameters {
         const clang::CallExpr* call = nullptr;
-        const clang::CXXMethodDecl* decl= nullptr;
+        const clang::CXXMethodDecl* decl = nullptr;
         const clang::FunctionDecl* containingFunction = nullptr;
         const clang::Expr* sender = nullptr;
         const clang::Expr* signal = nullptr;
