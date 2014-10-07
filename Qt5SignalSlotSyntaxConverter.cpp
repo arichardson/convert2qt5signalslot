@@ -746,7 +746,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     if (numFound > 1) {
         result += ')';
     }
-    return result.str();
+    return result.str().str();
 
 }
 
