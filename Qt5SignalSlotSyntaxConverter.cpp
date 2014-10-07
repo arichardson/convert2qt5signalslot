@@ -580,7 +580,7 @@ void ConnectCallMatcher::tryRemovingMembercallArg(const ConnectCallMatcher::Para
 }
 
 template<typename Output, typename Range, typename Callback, typename Separator>
-void join(Output* out, Range range, Separator separator, Callback callback) {
+static void join(Output* out, Range range, Separator separator, Callback callback) {
     bool first = true;
     for (auto it : range) {
         if (!first) {
@@ -592,6 +592,31 @@ void join(Output* out, Range range, Separator separator, Callback callback) {
     }
 }
 
+// from http://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance
+static unsigned int levenshtein_distance(StringRef s1, StringRef s2) {
+        const size_t len1 = s1.size(), len2 = s2.size();
+        std::vector<unsigned int> col(len2+1), prevCol(len2+1);
+
+        for (unsigned int i = 0; i < prevCol.size(); i++)
+                prevCol[i] = i;
+        for (unsigned int i = 0; i < len1; i++) {
+                col[0] = i+1;
+                for (unsigned int j = 0; j < len2; j++)
+                        col[j+1] = std::min( std::min(prevCol[1 + j] + 1, col[j] + 1),
+                                                                prevCol[j] + (s1[i]==s2[j] ? 0 : 1) );
+                col.swap(prevCol);
+        }
+        return prevCol[len2];
+}
+template<typename T>
+void removeSpaceBetweenTypeAndStar(T& str) {
+    // we don't want "Type * foo", but "Type* foo" instead
+    auto pointerIdx = str.find(" *");
+    while (pointerIdx != std::string::npos) {
+        str.replace(pointerIdx, 2, "*");
+        pointerIdx = str.find(" *", pointerIdx + 1);
+    }
+}
 
 std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* type,
         const StringLiteral* connectStr, const std::string& prepend, const ConnectCallMatcher::Parameters& p) {
@@ -650,7 +675,12 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     if (numFound == 0) {
         // check for Q_PRIVATE_SLOTS
         if (methodType == ReplaceSlot) {
-            std::vector<std::pair<CXXMethodDecl*, Stmt*>> privateSlotInfo;
+            struct ParamInfo {
+                CXXMethodDecl* method;
+                Stmt* body;
+                std::string params;
+            };
+            std::vector<ParamInfo> privateSlotInfo;
             for (auto method : type->methods()) {
                 //TODO: cache private slots? rather uncommon, so probably waste of programming time
                 // getName() asserts with operators or constructors
@@ -664,26 +694,34 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
                     assert(privateSlotMethod && privateSlotMethod->isStatic());
                     if (privateSlotMethod->getName() == methodName) {
                         assert(method->hasBody());
-                        privateSlotInfo.push_back(std::make_pair(privateSlotMethod, method->getBody()));
+                        llvm::SmallString<64> paramsStr;
+                        join(&paramsStr, privateSlotMethod->params(), ", ", [](const ParmVarDecl* param) {
+                            std::string s = param->getType().getAsString();
+                            removeSpaceBetweenTypeAndStar(s);
+                            return s;
+                        });
+                        privateSlotInfo.push_back(ParamInfo { privateSlotMethod, method->getBody(), paramsStr.str().str() });
                     }
 
                 }
             }
-            auto generateLambda = [&](CXXMethodDecl* method, Stmt* body) {
-                outs() << "Found private slot\n";
+            auto generateLambda = [&](const ParamInfo& info) {
+                // outs() << "Found private slot\n";
                 SmallString<128> result;
                 if (!prepend.empty()) {
                     result = prepend + ", ";
                 }
                 result += "[&]("; // just capture everything
-                join(&result, method->params(), ", ", [](ParmVarDecl* param) {
-                    return Twine(param->getType().getAsString() + " " + param->getName()).str();
+                join(&result, info.method->params(), ", ", [](ParmVarDecl* param) {
+                    std::string typeName = param->getType().getAsString();
+                    removeSpaceBetweenTypeAndStar(typeName);
+                    return Twine(typeName + " " + param->getName()).str();
                 });
                 result += ") { ";
-                outs() << "stmt type: " << body->getStmtClassName() << " ";
-                assert(std::distance(body->child_begin(), body->child_end()) == 2); // 2 statements
-                body->dump(outs(), currentCompilerInstance->getSourceManager());
-                StringLiteral* literal = dyn_cast<StringLiteral>(*body->child_begin());
+                // outs() << "stmt type: " << info.body->getStmtClassName() << " ";
+                assert(std::distance(info.body->child_begin(), info.body->child_end()) == 2); // 2 statements
+                // info.body->dump(outs(), currentCompilerInstance->getSourceManager());
+                StringLiteral* literal = dyn_cast<StringLiteral>(*info.body->child_begin());
                 assert(literal);
                 if (!p.receiver->isImplicitCXXThis()) {
                     result += expr2str(p.receiver, lastAstContext);
@@ -691,21 +729,29 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
                 }
                 result += literal->getString();
                 result += "->";
-                result += method->getName();
+                result += info.method->getName();
                 result += "(";
-                join(&result, method->params(), ", ", [](ParmVarDecl* param) {
+                join(&result, info.method->params(), ", ", [](ParmVarDecl* param) {
                     return param->getName();
                 });
                 result += "); }";
-                outs() << "PRIVATE RESULT: " << result << "\n";
+                // outs() << "PRIVATE RESULT: " << result << "\n";
                 return result.str().str();
             };
             if (privateSlotInfo.size() == 1) {
-                return generateLambda(privateSlotInfo[0].first, privateSlotInfo[0].second);
+                return generateLambda(privateSlotInfo[0]);
             } else if (privateSlotInfo.size() > 1) {
-                outs() << "TODO: overloaded private slots!!\n";
-                // just use the first for now...
-                return generateLambda(privateSlotInfo[0].first, privateSlotInfo[0].second);
+                StringRef parameters = signalSlotParameters(connectStr);
+                // find the parameters that differ the least from the SLOT() argument
+                auto bestMatch = std::min_element(privateSlotInfo.cbegin(), privateSlotInfo.cend(),
+                    [&](const ParamInfo& first, const ParamInfo& second) {
+                        uint d1 = levenshtein_distance(first.params, parameters);
+                        // outs() << "Distance between '" << first.params << "' and '" << parameters << "' is " << d1 << "\n";
+                        uint d2 = levenshtein_distance(second.params, parameters);
+                        // outs() << "Distance between '" << second.params << "' and '" << parameters << "' is " << d2 << "\n";
+                        return d1 < d2;
+                    });
+                return generateLambda(*bestMatch);
             }
         }
 
