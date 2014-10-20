@@ -91,9 +91,11 @@ int main(int argc, char** argv) {
     // 2 arg -> 0 arg
     QObject::connect(test, &Test::sig4, test, [&]() { test->d->privateSlot(); });
     test->sig4("baz", 3.3); // should call 2 slots
-    if (TestPrivate::privateCount != 10) { abort(); }
 
-    return TestPrivate::privateCount == 10;
+    if (TestPrivate::privateCount == 10) {
+        return EXIT_SUCCESS;
+    }
+    return EXIT_FAILURE;
 }
 
 #include "q_private_slot.moc"

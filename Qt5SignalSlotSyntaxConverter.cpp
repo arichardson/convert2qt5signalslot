@@ -777,6 +777,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
             outs() << type->getName() << "::" << methodName << " is a overloaded signal/slot. Found "
                     << numFound << " overloads.\n";
         }
+        // TODO guess overload based on similarity
         //overloaded signal/slot found -> we have to disambiguate
         StringRef parameters = signalSlotParameters(connectStr); // TODO suggest correct parameters
         result += "static_cast<void("; //TODO return type
