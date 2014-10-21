@@ -56,6 +56,8 @@ private:
      */
     std::string calculateReplacementStr(const clang::CXXRecordDecl* type,
             const clang::StringLiteral* connectStr, const std::string& prepend, const Parameters& p);
+    std::string handleQ_PRIVATE_SLOT(const clang::CXXRecordDecl* type,
+            const clang::StringLiteral* connectStr, const std::string& prepend, const Parameters& p);
 private:
     friend class ConnectConverter;
     std::atomic_int foundMatches;
