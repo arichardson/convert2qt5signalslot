@@ -58,18 +58,11 @@ static std::vector<UsingShadowDecl*> collectAllUsingDecls(const clang::DeclConte
     return ret;
 }
 
-//FIXME don't return int * but int*
-std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
-        const clang::DeclContext* containingFunction, const clang::CallExpr* callExpression, bool verbose,
-        clang::ASTContext* ast) {
-
-    const TagType* tt = type->getAs<TagType>();
-    if (!tt) {
-        return withoutUselessWhitespace(type.getAsString()); // could be builtin type e.g. int
-    }
+static std::string getLeastQualifiedNameInternal(const clang::TagType* tt, const clang::DeclContext* containingFunction,
+        const clang::CallExpr* callExpression, bool verbose, clang::ASTContext* ast) {
     static StringRef colonColon = "::";
     auto td = tt->getDecl();
-    auto targetTypeQualifiers = getNameQualifiers(td);
+    auto targetTypeQualifiers = ClangUtils::getNameQualifiers(td);
     //printParentContexts(type);
     //outs() << ", name qualifiers: " << targetTypeQualifiers.size() << "\n";
     assert(td->Equals(targetTypeQualifiers[0]));
@@ -78,28 +71,28 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
 
     if (targetTypeQualifiers.size() < 2) {
         // no need to qualify the name if there is no surrounding context
-        return withoutUselessWhitespace(td->getNameAsString());
+        return td->getNameAsString();
     }
     auto usingDecls = collectAllUsingDecls(containingFunction,
-            sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
+            ClangUtils::sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
 
     auto isUsingType = [td](UsingShadowDecl* usd) {
         auto cxxRecord = dyn_cast<CXXRecordDecl>(usd->getTargetDecl());
         return cxxRecord && td->Equals(cxxRecord);
     };
-    if (contains(usingDecls, isUsingType)) {
+    if (ClangUtils::contains(usingDecls, isUsingType)) {
         if (verbose) {
             outs() << "Using decl for " << td->getQualifiedNameAsString() << " exists, not qualifying\n";
         }
         // no need to qualify the name if there is a using decl for the current type
-        return withoutUselessWhitespace(td->getNameAsString());
+        return td->getNameAsString();
     }
 
     auto usingNamespaceDecls = collectAllUsingNamespaceDecls(containingFunction,
-            sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
+            ClangUtils::sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
 
     // have to qualify, but check the current scope first
-    auto containingScopeQualifiers = getNameQualifiers(containingFunction->getLookupParent());
+    auto containingScopeQualifiers = ClangUtils::getNameQualifiers(containingFunction->getLookupParent());
     // type must always be included, now check whether the other scopes have to be explicitly named
     // it's not neccessary if the current function scope is also inside that namespace/class
     // for some reason twine crashes here, use std::string
@@ -118,18 +111,18 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
             auto usedCtx = dyn_cast<DeclContext>(usd->getTargetDecl());
             return usedCtx && usedCtx->Equals(ctx);
         };
-        if (contains(containingScopeQualifiers, declContextEquals)) {
+        if (ClangUtils::contains(containingScopeQualifiers, declContextEquals)) {
             auto named = cast<NamedDecl>(ctx);
             if (verbose) {
                 outs() << "Don't need to add " << named->getQualifiedNameAsString() << " to lookup\n";
             }
-        } else if (contains(usingNamespaceDecls, isUsingNamespaceForContext)) {
+        } else if (ClangUtils::contains(usingNamespaceDecls, isUsingNamespaceForContext)) {
             auto ns = cast<NamespaceDecl>(ctx);
             if (verbose) {
                 outs() << "Ending qualifier search: using namespace for '" << ns->getQualifiedNameAsString() << "' exists\n";
             }
             break;
-        } else if (contains(usingDecls, isUsingDeclForContext)) {
+        } else if (ClangUtils::contains(usingDecls, isUsingDeclForContext)) {
             auto named = cast<NamedDecl>(ctx);
             // this is the last one we have to add since a using directive exists
             auto name = named->getName();
@@ -151,11 +144,59 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
             } else {
                 // this should never happen
                 outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*) ctx << "\n";
-                printParentContexts(td);
+                ClangUtils::printParentContexts(td);
             }
         }
     }
     return buffer.str().str();
+}
+
+std::string ClangUtils::getLeastQualifiedName(clang::QualType type, const clang::DeclContext* containingFunction,
+        const clang::CallExpr* callExpression, bool verbose, clang::ASTContext* ast) {
+    outs() << "About to print " << type.getAsString() << "\n";
+    std::string append;
+    // determine the references and pointers to be appended to the type
+    if (type->isReferenceType()) {
+        append = "&";
+        type = type->getPointeeType();
+    }
+    while (type->isPointerType()) {
+        Qualifiers qual = type.getQualifiers();
+        if (qual.hasConst()) {
+            append.insert(0, " const");
+        }
+        if (qual.hasVolatile()) {
+            append.insert(0, " volatile");
+        }
+        append.insert(0, "*");
+        type = type->getPointeeType();
+    }
+
+    // now that we have the underlying type add the qualifiers
+    Qualifiers qual = type.getQualifiers();
+    const char* prepend = "";
+    if (qual.hasConst()) {
+        if (qual.hasVolatile()) {
+            prepend = "volatile const ";
+        } else {
+            prepend = "const ";
+        }
+    } else if (qual.hasVolatile()) {
+        prepend = "volatile ";
+    }
+
+    std::string result;
+    if (const TagType* tt = type->getAs<TagType>()) {
+        outs() << type.getAsString() << " is a tag type\n";
+        result = getLeastQualifiedNameInternal(tt, containingFunction, callExpression, verbose, ast);
+    } else {
+        outs() << type.getAsString() << " is not a tag type\n";
+        PrintingPolicy printPol(ast->getLangOpts());
+        printPol.SuppressTagKeyword = true;
+        result = withoutUselessWhitespace(type.getAsString(printPol)); // could be builtin type e.g. int
+    }
+    outs() << "pre='" << prepend << "', result='" << result << "', append='" << append << "'\n";
+    return prepend + result + append;
 }
 
 std::vector<const clang::DeclContext*> ClangUtils::getNameQualifiers(const clang::DeclContext* ctx) {
