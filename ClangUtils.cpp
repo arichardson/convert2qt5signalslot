@@ -153,7 +153,7 @@ static std::string getLeastQualifiedNameInternal(const clang::TagType* tt, const
 
 std::string ClangUtils::getLeastQualifiedName(clang::QualType type, const clang::DeclContext* containingFunction,
         const clang::CallExpr* callExpression, bool verbose, clang::ASTContext* ast) {
-    outs() << "About to print " << type.getAsString() << "\n";
+    // outs() << "About to print " << type.getAsString() << "\n";
     std::string append;
     // determine the references and pointers to be appended to the type
     if (type->isReferenceType()) {
@@ -187,15 +187,15 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type, const clang:
 
     std::string result;
     if (const TagType* tt = type->getAs<TagType>()) {
-        outs() << type.getAsString() << " is a tag type\n";
+        // outs() << type.getAsString() << " is a tag type\n";
         result = getLeastQualifiedNameInternal(tt, containingFunction, callExpression, verbose, ast);
     } else {
-        outs() << type.getAsString() << " is not a tag type\n";
+        // outs() << type.getAsString() << " is not a tag type\n";
         PrintingPolicy printPol(ast->getLangOpts());
         printPol.SuppressTagKeyword = true;
         result = QualType::getAsString(type.getTypePtr(), Qualifiers()); // could be builtin type e.g. int
     }
-    outs() << "pre='" << prepend << "', result='" << result << "', append='" << append << "'\n";
+    // outs() << "pre='" << prepend << "', result='" << result << "', append='" << append << "'\n";
     return prepend + result + append;
 }
 
