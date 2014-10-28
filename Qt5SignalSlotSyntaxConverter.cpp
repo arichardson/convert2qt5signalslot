@@ -635,14 +635,14 @@ static int findBestMatch(const StringLiteral* connectStr, const T& methods, Gett
             paramsStr += QMetaObject::normalizedType(param->getType().getAsString().c_str()).constData();
         };
         uint distance = levenshtein_distance(expectedParams, paramsStr.str());
-        outs() << "Distance between '" << expectedParams << "' and '" << paramsStr.str() << "' is " << distance << "\n";
+        // outs() << "Distance between '" << expectedParams << "' and '" << paramsStr.str() << "' is " << distance << "\n";
         if (distance <= minDistance) {
             bestMatch = i;
             minDistance = distance;
-            outs() << "Current best match is '" << paramsStr.str() << "', index = " << i << "\n";
+            // outs() << "Current best match is '" << paramsStr.str() << "', index = " << i << "\n";
         }
     }
-    outs() << "Final match is index = " << bestMatch << "\n";
+    // outs() << "Final match is index = " << bestMatch << "\n";
     return bestMatch;
 }
 
