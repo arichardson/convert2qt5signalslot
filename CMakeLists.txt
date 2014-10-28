@@ -6,7 +6,8 @@ include(FeatureSummary)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake) 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-find_package(Clang 3.4 MODULE REQUIRED)
+find_package(Clang 3.5 MODULE REQUIRED)
+find_package(Qt5Core 5.3.0 CONFIG REQUIRED)
 
 link_directories( ${LLVM_LIB_DIR} )
 include_directories(${CLANG_INCLUDE_DIRS})
@@ -44,6 +45,8 @@ target_link_libraries(converter
   Clang::Parse
   Clang::Driver
   Clang::Edit
+
+  Qt5::Core
 )
 
 add_executable(convert2qt5signalslot main.cpp)

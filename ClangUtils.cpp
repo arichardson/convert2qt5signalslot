@@ -58,33 +58,40 @@ static std::vector<UsingShadowDecl*> collectAllUsingDecls(const clang::DeclConte
     return ret;
 }
 
-std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
+//FIXME don't return int * but int*
+std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
         const clang::DeclContext* containingFunction, const clang::CallExpr* callExpression, bool verbose,
         clang::ASTContext* ast) {
-    auto targetTypeQualifiers = getNameQualifiers(type);
+
+    const TagType* tt = type->getAs<TagType>();
+    if (!tt) {
+        return withoutUselessWhitespace(type.getAsString()); // could be builtin type e.g. int
+    }
+    auto td = tt->getDecl();
+    auto targetTypeQualifiers = getNameQualifiers(td);
     //printParentContexts(type);
     //outs() << ", name qualifiers: " << targetTypeQualifiers.size() << "\n";
-    assert(type->Equals(targetTypeQualifiers[0]));
+    assert(td->Equals(targetTypeQualifiers[0]));
     // TODO template arguments
 
 
     if (targetTypeQualifiers.size() < 2) {
         // no need to qualify the name if there is no surrounding context
-        return type->getName();
+        return withoutUselessWhitespace(td->getNameAsString());
     }
     auto usingDecls = collectAllUsingDecls(containingFunction,
             sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
 
-    auto isUsingType = [type](UsingShadowDecl* usd) {
+    auto isUsingType = [td](UsingShadowDecl* usd) {
         auto cxxRecord = dyn_cast<CXXRecordDecl>(usd->getTargetDecl());
-        return cxxRecord && type->Equals(cxxRecord);
+        return cxxRecord && td->Equals(cxxRecord);
     };
     if (contains(usingDecls, isUsingType)) {
         if (verbose) {
-            outs() << "Using decl for " << type->getQualifiedNameAsString() << " exists, not qualifying\n";
+            outs() << "Using decl for " << td->getQualifiedNameAsString() << " exists, not qualifying\n";
         }
         // no need to qualify the name if there is a using decl for the current type
-        return type->getName();
+        return withoutUselessWhitespace(td->getNameAsString());
     }
 
     auto usingNamespaceDecls = collectAllUsingNamespaceDecls(containingFunction,
@@ -95,7 +102,14 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
     // type must always be included, now check whether the other scopes have to be explicitly named
     // it's not neccessary if the current function scope is also inside that namespace/class
     // for some reason twine crashes here, use std::string
-    std::string buffer = type->getName();
+    llvm::SmallString<64> buffer;
+    buffer = td->getName();
+    auto prependNamedDecl = [](llvm::SmallString<64>& buf, const NamedDecl* decl) {
+        llvm::SmallString<64> buf2 = decl->getName();
+        buf2 += "::";
+        buf2 += buf;
+        buf = buf2;
+    };
     for (uint i = 1; i < targetTypeQualifiers.size(); ++i) {
         const DeclContext* ctx = targetTypeQualifiers[i];
         assert(ctx->isNamespace() || ctx->isRecord());
@@ -123,24 +137,24 @@ std::string ClangUtils::getLeastQualifiedName(const clang::CXXRecordDecl* type,
         } else if (contains(usingDecls, isUsingDeclForContext)) {
             auto named = cast<NamedDecl>(ctx);
             // this is the last one we have to add since a using directive exists
-            buffer = named->getName().str() + "::" + buffer;
+            prependNamedDecl(buffer, named);
             if (verbose) {
                 outs() << "Ending qualifier search: using for '" << named->getQualifiedNameAsString() << "' exists\n";
             }
             break;
         } else {
             if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
-                buffer = record->getName().str() + "::" + buffer;
+                prependNamedDecl(buffer, record);
             } else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
-                buffer = ns->getName().str() + "::" + buffer;
+                prependNamedDecl(buffer, ns);
             } else {
                 // this should never happen
                 outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*) ctx << "\n";
-                printParentContexts(type);
+                printParentContexts(td);
             }
         }
     }
-    return buffer;
+    return withoutUselessWhitespace(buffer.str().str());
 }
 
 std::vector<const clang::DeclContext*> ClangUtils::getNameQualifiers(const clang::DeclContext* ctx) {

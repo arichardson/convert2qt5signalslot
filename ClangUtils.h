@@ -110,6 +110,31 @@ static inline clang::SourceRange sourceRangeForStmt(const clang::Stmt* stmt, cla
     return clang::SourceRange(sourceLocationBeforeStmt(stmt, ctx), sourceLocationAfterStmt(stmt, ctx, offset));
 }
 
+template<typename T>
+inline void removeUselessWhitespace(T& str) {
+    // we don't want "Type * foo", but "Type* foo" instead
+    auto pointerIdx = str.find(" *");
+    while (pointerIdx != std::string::npos) {
+        str.replace(pointerIdx, 2, "*");
+        pointerIdx = str.find(" *");
+    }
+    // do the same for references
+    pointerIdx = str.find(" &");
+    while (pointerIdx != std::string::npos) {
+        str.replace(pointerIdx, 2, "&");
+        pointerIdx = str.find(" &");
+    }
+}
+
+template<typename T>
+inline T withoutUselessWhitespace(const T& str) {
+    T ret = str;
+    removeUselessWhitespace(ret);
+    return ret;
+}
+
+
+
 /** Checks whether @p cls inherits from a class named @p name with the specified access (public, private, protected, none)
  *
  * @param name is the name of the class (without template parameters). E.g. "QObject" */
@@ -145,7 +170,7 @@ static inline bool contains(const Container& c, Predicate p) {
  *  This removes any namespace/class qualifiers that are already part of current function scope
  *  TODO: handle using directives
  */
-std::string getLeastQualifiedName(const clang::CXXRecordDecl* type, const clang::DeclContext* containingFunction,
+std::string getLeastQualifiedName(clang::QualType type, const clang::DeclContext* containingFunction,
         const clang::CallExpr* callExpression, bool verbose, clang::ASTContext* ast);
 
 } // namespace ClangUtils
