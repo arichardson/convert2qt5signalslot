@@ -1,6 +1,7 @@
 #include "Qt5SignalSlotSyntaxConverter.h"
 #include "PreProcessorCallback.h"
 #include "ClangUtils.h"
+#include "config.h" // CLANG_BUILTIN_INCLUDES_PATH
 
 #include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/Basic/SourceManager.h>
@@ -11,6 +12,7 @@
 #include <clang/AST/Type.h>
 #include <clang/Lex/Lexer.h>
 #include <clang/Lex/Preprocessor.h>
+#include <clang/Lex/HeaderSearch.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/Scope.h>
 #include <clang/Sema/Lookup.h>
@@ -832,6 +834,12 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
     outs() << "Handling file: " << Filename << "\n";
     currentCompilerInstance = &CI;
     Preprocessor& pp = currentCompilerInstance->getPreprocessor();
+    // Make sure stddef.h is found
+    const DirectoryEntry* builtinIncludes = CI.getFileManager().getDirectory(CLANG_BUILTIN_INCLUDES_PATH);
+    if (builtinIncludes) {
+        DirectoryLookup dl = DirectoryLookup(builtinIncludes, SrcMgr::C_System, false);
+        pp.getHeaderSearchInfo().AddSearchPath(dl, true);
+    }
     pp.addPPCallbacks(llvm::make_unique<ConverterPPCallbacks>(pp));
     return true;
 }

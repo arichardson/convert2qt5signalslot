@@ -22,6 +22,10 @@ else()
   message(FATAL_ERROR "Using unknown compiler, don't know how to activate C++11")
 endif()
 
+#get path to clang internal include dir (while that is not fixed in clang)
+configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
+
+
 add_library(converter STATIC Qt5SignalSlotSyntaxConverter.cpp ClangUtils.cpp)
 target_link_libraries(converter
   LLVMSupport
