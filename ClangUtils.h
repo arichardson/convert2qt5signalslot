@@ -173,6 +173,12 @@ static inline bool contains(const Container& c, Predicate p) {
 std::string getLeastQualifiedName(clang::QualType type, const clang::DeclContext* containingFunction,
         const clang::CallExpr* callExpression, bool verbose, clang::ASTContext* ast);
 
+inline std::string getLeastQualifiedName(const clang::TypeDecl* decl, const clang::DeclContext* containingFunction,
+        const clang::CallExpr* callExpression, bool verbose, clang::ASTContext* ast) {
+    auto type = decl->getTypeForDecl();
+    return getLeastQualifiedName(clang::QualType(type, 0), containingFunction, callExpression, verbose, ast);
+}
+
 } // namespace ClangUtils
 
 #endif /* CLANGUTILS_H_ */

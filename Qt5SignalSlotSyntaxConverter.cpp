@@ -780,7 +780,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
     if (!prepend.empty()) {
         replacement = prepend + ", ";
     }
-    std::string qualifiedName = getLeastQualifiedName(QualType(type->getTypeForDecl(), 0), p.containingFunction, p.call, verboseMode, &currentCompilerInstance->getASTContext());
+    std::string qualifiedName = getLeastQualifiedName(type, p.containingFunction, p.call, verboseMode, &currentCompilerInstance->getASTContext());
 
     if (results.size() > 1) {
         if (verboseMode) {
