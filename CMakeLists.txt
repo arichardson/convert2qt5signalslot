@@ -46,7 +46,7 @@ target_link_libraries(converter
   Clang::Driver
   Clang::Edit
 
-  Qt5::Core
+  Qt5::Core #QMetaObject::normalizedSignature
 )
 
 add_executable(convert2qt5signalslot main.cpp)

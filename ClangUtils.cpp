@@ -67,6 +67,7 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
     if (!tt) {
         return withoutUselessWhitespace(type.getAsString()); // could be builtin type e.g. int
     }
+    static StringRef colonColon = "::";
     auto td = tt->getDecl();
     auto targetTypeQualifiers = getNameQualifiers(td);
     //printParentContexts(type);
@@ -104,12 +105,6 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
     // for some reason twine crashes here, use std::string
     llvm::SmallString<64> buffer;
     buffer = td->getName();
-    auto prependNamedDecl = [](llvm::SmallString<64>& buf, const NamedDecl* decl) {
-        llvm::SmallString<64> buf2 = decl->getName();
-        buf2 += "::";
-        buf2 += buf;
-        buf = buf2;
-    };
     for (uint i = 1; i < targetTypeQualifiers.size(); ++i) {
         const DeclContext* ctx = targetTypeQualifiers[i];
         assert(ctx->isNamespace() || ctx->isRecord());
@@ -137,16 +132,22 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
         } else if (contains(usingDecls, isUsingDeclForContext)) {
             auto named = cast<NamedDecl>(ctx);
             // this is the last one we have to add since a using directive exists
-            prependNamedDecl(buffer, named);
+            auto name = named->getName();
+            buffer.insert(buffer.begin(), colonColon.begin(), colonColon.end());
+            buffer.insert(buffer.begin(), name.begin(), name.end());
             if (verbose) {
                 outs() << "Ending qualifier search: using for '" << named->getQualifiedNameAsString() << "' exists\n";
             }
             break;
         } else {
             if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
-                prependNamedDecl(buffer, record);
+                auto name = record->getName();
+                buffer.insert(buffer.begin(), colonColon.begin(), colonColon.end());
+                buffer.insert(buffer.begin(), name.begin(), name.end());
             } else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
-                prependNamedDecl(buffer, ns);
+                auto name = ns->getName();
+                buffer.insert(buffer.begin(), colonColon.begin(), colonColon.end());
+                buffer.insert(buffer.begin(), name.begin(), name.end());
             } else {
                 // this should never happen
                 outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*) ctx << "\n";
@@ -154,7 +155,7 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type,
             }
         }
     }
-    return withoutUselessWhitespace(buffer.str().str());
+    return buffer.str().str();
 }
 
 std::vector<const clang::DeclContext*> ClangUtils::getNameQualifiers(const clang::DeclContext* ctx) {
