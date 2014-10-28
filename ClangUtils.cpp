@@ -193,7 +193,7 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type, const clang:
         outs() << type.getAsString() << " is not a tag type\n";
         PrintingPolicy printPol(ast->getLangOpts());
         printPol.SuppressTagKeyword = true;
-        result = withoutUselessWhitespace(type.getAsString(printPol)); // could be builtin type e.g. int
+        result = QualType::getAsString(type.getTypePtr(), Qualifiers()); // could be builtin type e.g. int
     }
     outs() << "pre='" << prepend << "', result='" << result << "', append='" << append << "'\n";
     return prepend + result + append;
