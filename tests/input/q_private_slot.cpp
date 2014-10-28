@@ -1,6 +1,12 @@
 #include <QObject>
 #include <QString>
 
+namespace NS {
+     class Used {};
+}
+
+using namespace NS;
+
 class TestPrivate {
 public:
     static int privateCount;
@@ -20,10 +26,13 @@ public:
         privateCount++;
         fprintf(stderr, "privateSlotOverloaded(%s, %f) called. Count = %d\n", str, d, privateCount);
     }
+    void privateSlotOverloaded(Used* u) {
+        privateCount++;
+        fprintf(stderr, "privateSlotOverloaded(%p) called. Count = %d\n", (void*)u, privateCount);
+    }
 };
 
 int TestPrivate::privateCount = 0;
-
 
 class Test : public QObject {
     Q_OBJECT
@@ -37,6 +46,7 @@ Q_SIGNALS:
     void sig2(int);
     void sig3(const char*);
     void sig4(const char*, double);
+    void sig5(NS::Used*); // have to qualify here otherwise moc breaks
 public Q_SLOTS:
     void publicSlot() { }
 public: // so that it stays compilable, I guess in general only "this" will be captured and not other variables
@@ -46,6 +56,7 @@ private:
     Q_PRIVATE_SLOT(d, void privateSlotOverloaded(int i2))
     Q_PRIVATE_SLOT(d, void privateSlotOverloaded(const char* str2))
     Q_PRIVATE_SLOT(d, void privateSlotOverloaded(const char* str2, double d2))
+    Q_PRIVATE_SLOT(d, void privateSlotOverloaded(NS::Used* u))
 };
 
 Test::~Test() {
@@ -91,8 +102,13 @@ int main(int argc, char** argv) {
     // 2 arg -> 0 arg
     test->connect(test, SIGNAL(sig4(const char*, double)), SLOT(privateSlot()));
     test->sig4("baz", 3.3); // should call 2 slots
+    if (TestPrivate::privateCount != 10) { abort(); }
 
-    if (TestPrivate::privateCount == 10) {
+    // test using (namespace) directives are handled
+    test->connect(test, SIGNAL(sig5(NS::Used*)), SLOT(privateSlotOverloaded(NS::Used*)));
+    test->sig5((Used*)nullptr); // should call 1 slots
+
+    if (TestPrivate::privateCount == 11) {
         return EXIT_SUCCESS;
     }
     return EXIT_FAILURE;

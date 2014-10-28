@@ -687,10 +687,9 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
         result = prepend + ", ";
     }
     result += "[&]("; // just capture everything
-    join(&result, info.method->params(), ", ", [](ParmVarDecl* param) {
-        std::string typeName = param->getType().getAsString();
-        removeUselessWhitespace(typeName);
-        return Twine(typeName + " " + param->getName()).str();
+    join(&result, info.method->params(), ", ", [&](ParmVarDecl* param) {
+        return (getLeastQualifiedName(param->getType(), p.containingFunction, p.call, verboseMode,
+                &currentCompilerInstance->getASTContext()) + " " + param->getName()).str();
     });
     result += ") { ";
     // outs() << "stmt type: " << info.body->getStmtClassName() << " ";
