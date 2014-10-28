@@ -29,7 +29,11 @@ Known problems
 
 ###stddef.h not found
 
-If it complains that stddef.h is not found you should make sure that the compiler builtin headers are found in `$PREFIX/lib/clang/<version>/include`.
+This should be fixed in the current version since "<CLANG_LIBRARY_DIR>/clang/<CLANG_VERSION_STRING>/include" gets added to the include paths automatically.
+
+It will break of you compile convert2qt5signalslot on one system and then run it on another where CLANG_LIBRARY_DIR does not match.
+
+In order to fix this you should make sure that the compiler builtin headers are found in `<path-to-tool-binary>/../lib/clang/<version>/include`.
 If that is not the case you can do e.g. `ln -s /usr/lib64/clang $PREFIX/lib/clang`. Note that clang tools always search in `lib` even if the
 distribution uses `lib64`.
 
