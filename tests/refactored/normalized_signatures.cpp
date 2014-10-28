@@ -1,6 +1,16 @@
 #include <QObject>
 #include <QUrl>
 
+namespace X {
+    class Y;
+}
+
+namespace Used {
+    class U;
+}
+
+using namespace Used;
+
 class Foo : public QObject {
     Q_OBJECT
 public:
@@ -14,6 +24,10 @@ Q_SIGNALS:
     void ptr(); // force disambiguation
     void constPtr(const QUrl*);
     void constPtr(); // force disambiguation
+    void complex(const X::Y* const* volatile const* const);
+    void complex(); // force disambiguation
+    void usedComplex(const U* const* volatile const* const);
+    void usedComplex();
 public Q_SLOTS:
     void overloadedSlot(QUrl&) {
         printf("Called overloadedSlot(QUrl&)\n");
@@ -31,6 +45,7 @@ public Q_SLOTS:
         printf("Called overloadedSlot(const QUrl*)\n");
         callCount[3]++;
     }
+    void overloadedSlot() {}
 private:
     int callCount[4] = { 0, 0, 0, 0 };
 
@@ -53,10 +68,10 @@ int main() {
     Foo* foo = new Foo;
 
     // exact matches
-    QObject::connect(foo, SIGNAL(constPtr(const QUrl*)), foo, SLOT(overloadedSlot(const QUrl*)));
-    QObject::connect(foo, SIGNAL(constRef(const QUrl&)), foo, SLOT(overloadedSlot(const QUrl&)));
-    QObject::connect(foo, SIGNAL(ptr(QUrl*)), foo, SLOT(overloadedSlot(QUrl*)));
-    QObject::connect(foo, SIGNAL(ref(QUrl&)), foo, SLOT(overloadedSlot(QUrl&)));
+    QObject::connect(foo, static_cast<void(Foo::*)(const QUrl*)>(&Foo::constPtr), foo, static_cast<void(Foo::*)(const QUrl*)>(&Foo::overloadedSlot));
+    QObject::connect(foo, static_cast<void(Foo::*)(const QUrl&)>(&Foo::constRef), foo, static_cast<void(Foo::*)(const QUrl&)>(&Foo::overloadedSlot));
+    QObject::connect(foo, static_cast<void(Foo::*)(QUrl*)>(&Foo::ptr), foo, static_cast<void(Foo::*)(QUrl*)>(&Foo::overloadedSlot));
+    QObject::connect(foo, static_cast<void(Foo::*)(QUrl&)>(&Foo::ref), foo, static_cast<void(Foo::*)(QUrl&)>(&Foo::overloadedSlot));
     // added const in slot doesn't work!
     //QObject::connect(foo, SIGNAL(ptr(QUrl*)), foo, SLOT(overloadedSlot(const QUrl*)));
     //QObject::connect(foo, SIGNAL(ref(QUrl&)), foo, SLOT(overloadedSlot(const QUrl&)));
@@ -78,11 +93,17 @@ int main() {
      *         Foo::ref(QUrl&) --> Foo::overloadedSlot(QUrl)
      */
     // QObject::connect(foo, SIGNAL(ref(QUrl&)), foo, SLOT(overloadedSlot(QUrl)));
-    QObject::connect(foo, SIGNAL(constRef(const QUrl&)), foo, SLOT(overloadedSlot(QUrl))); // normalization: QUrl is equiv to const QUrl&
-    QObject::connect(foo, SIGNAL(constRef(QUrl)), foo, SLOT(overloadedSlot(const QUrl&))); // normalization: QUrl is equiv to const QUrl&
-    QObject::connect(foo, SIGNAL(constRef(QUrl)), foo, SLOT(overloadedSlot(QUrl))); // normalization: QUrl is equiv to const QUrl&
+    QObject::connect(foo, static_cast<void(Foo::*)(const QUrl&)>(&Foo::constRef), foo, static_cast<void(Foo::*)(const QUrl&)>(&Foo::overloadedSlot)); // normalization: QUrl is equiv to const QUrl&
+    QObject::connect(foo, static_cast<void(Foo::*)(const QUrl&)>(&Foo::constRef), foo, static_cast<void(Foo::*)(const QUrl&)>(&Foo::overloadedSlot)); // normalization: QUrl is equiv to const QUrl&
+    QObject::connect(foo, static_cast<void(Foo::*)(const QUrl&)>(&Foo::constRef), foo, static_cast<void(Foo::*)(const QUrl&)>(&Foo::overloadedSlot)); // normalization: QUrl is equiv to const QUrl&
+
     foo->constRef(cr);
     foo->checkCallCount(1, 4, 1, 1);
+
+    // make sure the type printing works correctly
+    QObject::connect(foo, static_cast<void(Foo::*)(const X::Y* const* volatile const* const)>(&Foo::complex), foo, static_cast<void(Foo::*)()>(&Foo::overloadedSlot));
+    QObject::connect(foo, static_cast<void(Foo::*)(const U* const* volatile const* const)>(&Foo::usedComplex), foo, static_cast<void(Foo::*)()>(&Foo::overloadedSlot));
+
     return 0;
 }
 

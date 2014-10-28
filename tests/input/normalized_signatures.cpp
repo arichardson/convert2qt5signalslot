@@ -1,6 +1,16 @@
 #include <QObject>
 #include <QUrl>
 
+namespace X {
+    class Y;
+}
+
+namespace Used {
+    class U;
+}
+
+using namespace Used;
+
 class Foo : public QObject {
     Q_OBJECT
 public:
@@ -14,6 +24,10 @@ Q_SIGNALS:
     void ptr(); // force disambiguation
     void constPtr(const QUrl*);
     void constPtr(); // force disambiguation
+    void complex(const X::Y* const* volatile const* const);
+    void complex(); // force disambiguation
+    void usedComplex(const U* const* volatile const* const);
+    void usedComplex();
 public Q_SLOTS:
     void overloadedSlot(QUrl&) {
         printf("Called overloadedSlot(QUrl&)\n");
@@ -31,6 +45,7 @@ public Q_SLOTS:
         printf("Called overloadedSlot(const QUrl*)\n");
         callCount[3]++;
     }
+    void overloadedSlot() {}
 private:
     int callCount[4] = { 0, 0, 0, 0 };
 
@@ -81,8 +96,14 @@ int main() {
     QObject::connect(foo, SIGNAL(constRef(const QUrl&)), foo, SLOT(overloadedSlot(QUrl))); // normalization: QUrl is equiv to const QUrl&
     QObject::connect(foo, SIGNAL(constRef(QUrl)), foo, SLOT(overloadedSlot(const QUrl&))); // normalization: QUrl is equiv to const QUrl&
     QObject::connect(foo, SIGNAL(constRef(QUrl)), foo, SLOT(overloadedSlot(QUrl))); // normalization: QUrl is equiv to const QUrl&
+
     foo->constRef(cr);
     foo->checkCallCount(1, 4, 1, 1);
+
+    // make sure the type printing works correctly
+    QObject::connect(foo, SIGNAL(complex(const X::Y* const* volatile const* const)), foo, SLOT(overloadedSlot()));
+    QObject::connect(foo, SIGNAL(usedComplex(const U* const* volatile const* const)), foo, SLOT(overloadedSlot()));
+
     return 0;
 }
 
