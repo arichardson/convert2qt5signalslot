@@ -388,7 +388,7 @@ static std::string castSignalToMemberFunctionIfNullPtr(ConnectCallMatcher::Param
         // need to explicitly cast null pointer since there is no qt overload for signal == null
         assert(p.slotLiteral);
         StringRef parameters = signalSlotParameters(p.slotLiteral->getString()); // TODO suggest correct parameters
-        return "static_cast<void(" + getLeastQualifiedName(p.sender->getType(),
+        return "static_cast<void(" + getLeastQualifiedName(p.sender->getBestDynamicClassType(),
                 p.containingFunction, p.call, verboseMode, ctx) + "::*)(" + parameters.str() + ")>(" + signalString + ")";
     }
     else {
