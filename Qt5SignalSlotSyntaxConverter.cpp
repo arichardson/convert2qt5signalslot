@@ -837,7 +837,7 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
     // Make sure stddef.h is found
     const DirectoryEntry* builtinIncludes = CI.getFileManager().getDirectory(CLANG_BUILTIN_INCLUDES_PATH);
     if (builtinIncludes) {
-        DirectoryLookup dl = DirectoryLookup(builtinIncludes, SrcMgr::C_System, false);
+        DirectoryLookup dl = DirectoryLookup(builtinIncludes, SrcMgr::C_ExternCSystem, false);
         pp.getHeaderSearchInfo().AddSearchPath(dl, true);
     }
 #if CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 6
