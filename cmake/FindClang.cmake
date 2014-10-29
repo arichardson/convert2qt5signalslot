@@ -50,13 +50,16 @@ if(NOT TARGET llvm-config)
   return()
 endif()
 
+set(CLANG_LIBRARY_DIR ${LLVM_LIBRARY_DIRS})
+set(CLANG_INCLUDE_DIR ${LLVM_INCLUDE_DIRS})
+
 macro(FIND_AND_ADD_CLANG_LIB _libname_)
   string(TOUPPER ${_libname_} _prettylibname_)
   find_library(CLANG_${_prettylibname_}_LIB NAMES "clang${_libname_}" HINTS ${LLVM_LIBRARY_DIRS})
   if(CLANG_${_prettylibname_}_LIB)
     add_library(Clang::${_libname_} UNKNOWN IMPORTED)
     set_property(TARGET Clang::${_libname_} PROPERTY IMPORTED_LOCATION "${CLANG_${_prettylibname_}_LIB}")
-    set_property(TARGET Clang::${_libname_} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${LLVM_INCLUDE_DIRS})
+    set_property(TARGET Clang::${_libname_} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CLANG_INCLUDE_DIR})
 
     set(CLANG_LIBS ${CLANG_LIBS} ${CLANG_${_prettylibname_}_LIB})
   endif()
@@ -91,21 +94,6 @@ else()
 endif()
 
 if(Clang_FOUND)
-  set(CLANG_LIBRARY_DIR ${LLVM_LIBRARY_DIRS})
-  set(CLANG_INCLUDE_DIR ${LLVM_INCLUDE_DIR})
-
-  # check whether llvm-config comes from an install prefix
-  execute_process(
-    COMMAND ${LLVM_CONFIG_EXECUTABLE} --src-root
-    OUTPUT_VARIABLE _llvmSourceRoot
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-  string(FIND "${LLVM_INCLUDE_DIR}" "${_llvmSourceRoot}" _llvmIsInstalled)
-  if (NOT _llvmIsInstalled)
-    message(STATUS "Detected that llvm-config comes from a build-tree, adding includes from source dir")
-    list(APPEND CLANG_INCLUDE_DIR "${_llvmSourceRoot}/tools/clang/include")
-  endif()
-
   message(STATUS "Found Clang (LLVM version: ${LLVM_VERSION})")
   message(STATUS "  Include dirs:  ${CLANG_INCLUDE_DIR}")
   message(STATUS "  Library dir:  ${CLANG_LIBRARY_DIR}")
