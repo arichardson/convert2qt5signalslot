@@ -840,7 +840,12 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
         DirectoryLookup dl = DirectoryLookup(builtinIncludes, SrcMgr::C_System, false);
         pp.getHeaderSearchInfo().AddSearchPath(dl, true);
     }
+#if CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 6
+    // 3.6 expects a unique_ptr here
     pp.addPPCallbacks(llvm::make_unique<ConverterPPCallbacks>(pp));
+#else
+    pp.addPPCallbacks(new ConverterPPCallbacks(pp));
+#endif
     return true;
 }
 
