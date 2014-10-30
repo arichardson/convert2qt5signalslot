@@ -1,9 +1,13 @@
 #include "ClangUtils.h"
 
 #include <clang/AST/DeclCXX.h>
+#include <clang/Sema/Sema.h>
+#include <clang/Sema/Lookup.h>
+#include <clang/Lex/Preprocessor.h>
 
 using namespace clang;
-using namespace llvm;
+using llvm::outs;
+using llvm::errs;
 
 static void collectAllUsingNamespaceDeclsHelper(const clang::DeclContext* ctx, std::vector<UsingDirectiveDecl*>& buf,
         SourceLocation callLocation, const SourceManager& sm) {
@@ -264,3 +268,41 @@ bool ClangUtils::isOrInheritsFrom(const clang::CXXRecordDecl* cls, const char* n
     }
     return inheritsFrom(cls, name, access);
 }
+
+std::vector<clang::FunctionDecl*> ClangUtils::lookupFunctionsInClass(StringRef methodName, const CXXRecordDecl* type, SourceLocation loc, const CompilerInstance& ci) {
+    DeclarationName lookupName(ci.getPreprocessor().getIdentifierInfo(methodName));
+    // TODO: how to get a scope for lookup
+    // looks like we have to fill the Scope* manually
+
+    //outs() << "Looking up " << methodName << " in " << type->getQualifiedNameAsString() << "\n";
+    LookupResult lookup(ci.getSema(), lookupName, loc, Sema::LookupMemberName);
+    lookup.suppressDiagnostics(); // don't output errors if the method could not be found!
+    // setting inUnqualifiedLookup to true makes sure that base classes are searched too
+    ci.getSema().LookupQualifiedName(lookup, const_cast<DeclContext*>(type->getPrimaryContext()), true);
+    //outs() << "lr after lookup: ";
+    //lookup.print(outs());
+    std::vector<FunctionDecl*> results;
+    auto addDeclToResultsIfFunction = [&](NamedDecl* found) {
+        // if it has been brought to the local scope using a using declaration get the actual decl instead
+        if (UsingShadowDecl* usingShadow = dyn_cast<UsingShadowDecl>(found)) {
+            found = usingShadow->getTargetDecl();
+        }
+        if (auto decl = dyn_cast<FunctionDecl>(found)) {
+            results.push_back(decl);
+        } else {
+            errs() << found->getQualifiedNameAsString() << " is not a function, but a " << found->getDeclKindName() << "\n";
+        }
+    };
+    if (lookup.isSingleResult()) {
+        addDeclToResultsIfFunction(lookup.getFoundDecl());
+    } else if (lookup.isOverloadedResult() || lookup.isAmbiguous()) {
+        // if (lookup.isAmbiguous()) {
+        //     errs() << "AMBIGUOUS LOOKUP!\"n;
+        // }
+        for (NamedDecl* found : lookup) {
+            addDeclToResultsIfFunction(found);
+        }
+    }
+    return results;
+}
+

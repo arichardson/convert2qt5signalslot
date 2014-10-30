@@ -721,39 +721,8 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
         const StringLiteral* connectStr, const std::string& prepend, const ConnectCallMatcher::Parameters& p) {
     ReplacementType methodType;
     StringRef methodName = signalSlotName(connectStr, &methodType);
-    DeclarationName lookupName(pp->getIdentifierInfo(methodName));
-    // TODO: how to get a scope for lookup
-    // looks like we have to fill the Scope* manually
-
-    //outs() << "Looking up " << methodName << " in " << type->getQualifiedNameAsString() << "\n";
-    LookupResult lookup(*sema, lookupName, sourceLocationBeforeStmt(p.call, &currentCompilerInstance->getASTContext()), Sema::LookupMemberName);
-    lookup.suppressDiagnostics(); // don't output errors if the method could not be found!
-    // setting inUnqualifiedLookup to true makes sure that base classes are searched too
-    sema->LookupQualifiedName(lookup, const_cast<DeclContext*>(type->getPrimaryContext()), true);
-    //outs() << "lr after lookup: ";
-    //lookup.print(outs());
-    std::vector<FunctionDecl*> results;
-    auto addDeclToResultsIfFunction = [&](NamedDecl* found) {
-        // if it has been brought to the local scope using a using declaration get the actual decl instead
-        if (UsingShadowDecl* usingShadow = dyn_cast<UsingShadowDecl>(found)) {
-            found = usingShadow->getTargetDecl();
-        }
-        if (auto decl = dyn_cast<FunctionDecl>(found)) {
-            results.push_back(decl);
-        } else {
-            errs() << found->getQualifiedNameAsString() << " is not a function, but a " << found->getDeclKindName() << "\n";
-        }
-    };
-    if (lookup.isSingleResult()) {
-        addDeclToResultsIfFunction(lookup.getFoundDecl());
-    } else if (lookup.isOverloadedResult() || lookup.isAmbiguous()) {
-        // if (lookup.isAmbiguous()) {
-        //     errs() << "AMBIGUOUS LOOKUP!\"n;
-        // }
-        for (NamedDecl* found : lookup) {
-            addDeclToResultsIfFunction(found);
-        }
-    }
+    std::vector<FunctionDecl*> results = ClangUtils::lookupFunctionsInClass(
+            methodName, type, sourceLocationBeforeStmt(p.call, lastAstContext), *currentCompilerInstance);
     if (results.empty()) {
         // check for Q_PRIVATE_SLOTS
         if (methodType == ReplaceSlot) {
@@ -847,7 +816,7 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
     pp.addPPCallbacks(new ConverterPPCallbacks(pp));
 #endif
 
-     CI.getDiagnostics().setClient(new ClangUtils::DiagConsumer(CI.getDiagnostics().takeClient()));
+    CI.getDiagnostics().setClient(new ClangUtils::DiagConsumer(CI.getDiagnostics().takeClient()));
 
     return true;
 }

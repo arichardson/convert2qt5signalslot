@@ -8,6 +8,7 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/Lex/Lexer.h>
 #include <clang/Basic/AllDiagnostics.h>
+#include <clang/Frontend/CompilerInstance.h>
 #include <unistd.h>
 
 namespace ClangUtils {
@@ -185,6 +186,9 @@ inline std::string getLeastQualifiedName(const clang::TypeDecl* decl, const clan
     auto type = decl->getTypeForDecl();
     return getLeastQualifiedName(clang::QualType(type, 0), containingFunction, callExpression, verbose, ast);
 }
+
+std::vector<clang::FunctionDecl*> lookupFunctionsInClass(llvm::StringRef methodName, const clang::CXXRecordDecl* type,
+        clang::SourceLocation loc, const clang::CompilerInstance& ci);
 
 } // namespace ClangUtils
 
