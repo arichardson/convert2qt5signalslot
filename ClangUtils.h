@@ -7,10 +7,42 @@
 #include <clang/AST/Expr.h>
 #include <clang/AST/ASTContext.h>
 #include <clang/Lex/Lexer.h>
-
+#include <clang/Basic/AllDiagnostics.h>
 #include <unistd.h>
 
 namespace ClangUtils {
+
+
+struct DiagConsumer : clang::DiagnosticConsumer {
+    std::unique_ptr<DiagnosticConsumer> Proxy;
+    DiagConsumer(DiagnosticConsumer *Previous) : Proxy(Previous) {}
+    int HadRealError = 0;
+
+    void BeginSourceFile(const clang::LangOptions& LangOpts, const clang::Preprocessor* PP = 0) override {
+        Proxy->BeginSourceFile(LangOpts, PP);
+    }
+    void clear() override {
+        Proxy->clear();
+    }
+    void EndSourceFile() override {
+        Proxy->EndSourceFile();
+    }
+    void finish() override {
+        Proxy->finish();
+    }
+    void HandleDiagnostic(clang::DiagnosticsEngine::Level DiagLevel, const clang::Diagnostic& Info) override {
+        /* Moc ignores most of the errors since it even can operate on non self-contained headers.
+        * So try to change errors into warning.
+        */
+        auto diagId = Info.getID();
+        if (diagId == clang::diag::warn_unused_expr) {
+            llvm::outs() << "Skipping unused expr\n";
+            //const_cast<clang::DiagnosticsEngine *>(Info.getDiags())->Reset();
+        } else {
+            Proxy->HandleDiagnostic(DiagLevel, Info);
+        }
+    }
+};
 
 struct ColouredOStream {
     ColouredOStream(llvm::raw_ostream& stream, llvm::raw_ostream::Colors colour, bool bold, bool isTTY)

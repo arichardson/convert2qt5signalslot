@@ -846,6 +846,9 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
 #else
     pp.addPPCallbacks(new ConverterPPCallbacks(pp));
 #endif
+
+     CI.getDiagnostics().setClient(new ClangUtils::DiagConsumer(CI.getDiagnostics().takeClient()));
+
     return true;
 }
 
