@@ -614,6 +614,11 @@ static unsigned int levenshtein_distance(StringRef s1, StringRef s2) {
         return prevCol[len2];
 }
 
+template<typename T>
+struct VectorGetter {
+    const T& operator()(const std::vector<T>& v, int index) { return v[index]; }
+};
+
 /** Normalizes the signature (QMetaObject::normalizedSignature) from @p connectStr and
  * then finds the best matching method from @p methods based on the function signature.
  * @return an index into @p methods
@@ -624,8 +629,8 @@ static int findBestMatch(const StringLiteral* connectStr, const T& methods, Gett
     StringRef expectedParams = signalSlotParameters(StringRef(normalizedSig.constData()));
     int bestMatch = 0;
     uint minDistance = std::numeric_limits<uint>::max();
-    for (int i = 0; i < methods.size(); ++i) {
-        FunctionDecl* decl = getter(methods, i);
+    for (size_t i = 0; i < methods.size(); ++i) {
+        const FunctionDecl* decl = getter(methods, i);
         llvm::SmallString<64> paramsStr;
         bool first = true;
         for (ParmVarDecl* param : decl->params()) {
@@ -653,34 +658,66 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
     ReplacementType methodType;
     StringRef methodName = signalSlotName(connectStr, &methodType);
     struct ParamInfo {
-        CXXMethodDecl* method;
-        Stmt* body;
+        FunctionDecl* method;
+        std::string parameters;
+        std::string expression;
     };
     std::vector<ParamInfo> privateSlotInfo;
     for (auto method : type->methods()) {
         // getName() asserts with operators or constructors
         if (StringRef(method->getNameAsString()).startswith("__qt_private_slot_")) {
-            // outs() << "Found private slot: " << method->getName() << " in " << type->getNameAsString() << "\n";
-            assert(std::distance(method->decls_begin(), method->decls_end()) == 1);
-            CXXRecordDecl* localClass = dyn_cast<CXXRecordDecl>(*method->decls_begin());
-            assert(localClass);
-            assert(std::distance(localClass->method_begin(), localClass->method_end()) == 1);
-            CXXMethodDecl* privateSlotMethod = dyn_cast<CXXMethodDecl>(*localClass->method_begin());
-            assert(privateSlotMethod && privateSlotMethod->isStatic());
-            if (privateSlotMethod->getName() == methodName) {
-                assert(method->hasBody());
-                privateSlotInfo.push_back(ParamInfo { privateSlotMethod, method->getBody() });
+            assert(method->hasBody());
+            auto body = method->getBody();
+            auto bodyIter = body->child_begin();
+            assert(std::distance(bodyIter, body->child_end()) == 3);
+            Expr* expression = dyn_cast<Expr>(*bodyIter);
+            bodyIter++;
+            StringLiteral* expressionStr = dyn_cast<StringLiteral>(*bodyIter);
+            bodyIter++;
+            StringLiteral* signature = dyn_cast<StringLiteral>(*bodyIter);
+            assert(expression);
+            assert(expressionStr);
+            assert(signature);
+            const CXXRecordDecl* expressionType = expression->getBestDynamicClassType();
+            StringRef signatureStr = signature->getString();
+            size_t openBracketIdx = signatureStr.find('(');
+            size_t closeBracketIdx = signatureStr.rfind(')');
+            size_t methodNameStartIdx = signatureStr.rfind(' ', openBracketIdx);
+            if (openBracketIdx == StringRef::npos || closeBracketIdx == StringRef::npos || methodNameStartIdx == StringRef::npos) {
+                currentCompilerInstance->getDiagnostics().Report(signature->getLocStart(), badQPrivateSlotDiagId) << signatureStr << sourceRangeForStmt(signature, lastAstContext);
+                continue;
+            }
+
+            StringRef currentPrivateMethod = signatureStr.slice(methodNameStartIdx, openBracketIdx).trim();
+            StringRef parameters = signatureStr.slice(openBracketIdx + 1, closeBracketIdx).trim();
+
+            outs() << "method=" << currentPrivateMethod << ", params=(" << parameters << ")\n";
+
+            if (currentPrivateMethod == methodName) {
+                if (!expressionType) {
+                    errs() << "Could not determine type of expression '" << expressionStr->getString() << "' inside "
+                            << type->getQualifiedNameAsString() << ", maybe it is an incomplete type?\n";
+                    continue;
+                }
+                auto candidates = lookupFunctionsInClass(methodName, expressionType, expression->getLocStart(), *currentCompilerInstance);
+                if (candidates.empty()) {
+                    errs() << "Could not find private slot " << methodName << " in " << expressionType->getQualifiedNameAsString() << "\n";
+                    continue;
+                }
+                int index = findBestMatch(signature, candidates, [](const std::vector<FunctionDecl*>& v, size_t idx) { return v[idx]; });
+                privateSlotInfo.push_back(ParamInfo{ candidates[index], parameters.str(), expressionStr->getString().str() } );
             }
 
         }
     }
+    outs() << "Found " << privateSlotInfo.size() << "candidates for Q_PRIVATE_SLOT "<< methodName;
     if (privateSlotInfo.empty()) {
         return {};
     }
     uint chosenInfoIndex = 0;
     if (privateSlotInfo.size() > 1) {
         // find the parameters that differ the least from the SLOT() argument
-        chosenInfoIndex = findBestMatch(connectStr, privateSlotInfo, [](const std::vector<ParamInfo>& v, int index) { return v[index].method; });
+        chosenInfoIndex = findBestMatch(connectStr, privateSlotInfo, [](const std::vector<ParamInfo>& v, size_t index) { return v[index].method; });
     }
     auto info = privateSlotInfo[chosenInfoIndex];
     // outs() << "Found private slot\n";
@@ -694,16 +731,11 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
                 &currentCompilerInstance->getASTContext()) + " " + param->getName()).str();
     });
     result += ") { ";
-    // outs() << "stmt type: " << info.body->getStmtClassName() << " ";
-    assert(std::distance(info.body->child_begin(), info.body->child_end()) == 2); // 2 statements
-    // info.body->dump(outs(), currentCompilerInstance->getSourceManager());
-    StringLiteral* literal = dyn_cast<StringLiteral>(*info.body->child_begin());
-    assert(literal);
     if (!p.receiver->isImplicitCXXThis()) {
         result += expr2str(p.receiver, lastAstContext);
         result += "->";
     }
-    result += literal->getString();
+    result += info.expression;
     result += "->";
     result += info.method->getName();
     result += "(";
@@ -757,7 +789,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
             outs() << type->getName() << "::" << methodName << " is a overloaded signal/slot. Found "
                     << results.size() << " overloads.\n";
         }
-        int methodIndex = findBestMatch(connectStr, results, [](const std::vector<FunctionDecl*>& v, int index) { return v[index]; });
+        int methodIndex = findBestMatch(connectStr, results, [](const std::vector<FunctionDecl*>& v, size_t idx) { return v[idx]; });
         FunctionDecl* chosenMethod = results[methodIndex];
         replacement += "static_cast<";
         replacement += getLeastQualifiedName(chosenMethod->getReturnType(), p.containingFunction, p.call, verboseMode, &currentCompilerInstance->getASTContext());
@@ -817,6 +849,7 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
 #endif
 
     CI.getDiagnostics().setClient(new ClangUtils::DiagConsumer(CI.getDiagnostics().takeClient()));
+    badQPrivateSlotDiagId = CI.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning, "Invalid Q_PRIVATE_SLOT signature: '%0'");
 
     return true;
 }

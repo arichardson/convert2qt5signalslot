@@ -71,6 +71,7 @@ private:
     clang::QualType constCharPtrType;
     clang::tooling::Replacements* replacements = nullptr;
     const std::vector<std::string>& refactoringFiles;
+    uint badQPrivateSlotDiagId = 0;
 };
 
 

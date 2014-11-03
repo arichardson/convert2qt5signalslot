@@ -11,10 +11,9 @@ static const char* Q_PRIVATE_SLOT_definition =
         "#endif\n"
         "#define Q_PRIVATE_SLOT(d, signature) "
         "void CONVERT_SIGNALS_TOKENPASTE(__qt_private_slot_, __LINE__)() {"
-        "    #d;"
-        "    class CONVERT_SIGNALS_TOKENPASTE(classdef_, __LINE__) {"
-        "        static signature;"
-        "    };"
+        "    d;" // expression so we can get the type
+        "    #d;" // make it easier to get the string representation of that expression
+        "    #signature;" // we will have to parse this
         "}\n";
 
 
