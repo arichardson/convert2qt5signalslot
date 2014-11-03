@@ -199,6 +199,7 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type, const clang:
         printPol.SuppressTagKeyword = true;
         result = QualType::getAsString(type.getTypePtr(), Qualifiers()); // could be builtin type e.g. int
     }
+    // outs() << "least qualified name for " << QualType::getAsString(type.getTypePtr(), Qualifiers()) << " is " << (prepend + result + append) << "\n";
     // outs() << "pre='" << prepend << "', result='" << result << "', append='" << append << "'\n";
     return prepend + result + append;
 }
@@ -211,8 +212,12 @@ std::vector<const clang::DeclContext*> ClangUtils::getNameQualifiers(const clang
             if (!ns->isAnonymousNamespace()) {
                 ret.push_back(ns);
             }
-        } else if (isa<clang::CXXRecordDecl>(ctx)) {
+        } else if (isa<clang::CXXRecordDecl>(ctx) || isa<clang::EnumDecl>(ctx)) {
             ret.push_back(ctx);
+        } else if (isa<TranslationUnitDecl>(ctx)) {
+            break;
+        } else {
+            errs() << "unknown context type: " << ctx->getDeclKindName() << "\n";
         }
         ctx = ctx->getLookupParent();
     }
