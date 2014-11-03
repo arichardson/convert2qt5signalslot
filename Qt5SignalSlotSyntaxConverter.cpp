@@ -619,12 +619,18 @@ struct VectorGetter {
     const T& operator()(const std::vector<T>& v, int index) { return v[index]; }
 };
 
+
+enum class Matchmode {
+    Default,
+    IncludeParamNames
+};
+
 /** Normalizes the signature (QMetaObject::normalizedSignature) from @p connectStr and
  * then finds the best matching method from @p methods based on the function signature.
  * @return an index into @p methods
  */
 template<typename T, typename Getter>
-static int findBestMatch(const StringLiteral* connectStr, const T& methods, Getter getter) {
+static int findBestMatch(const StringLiteral* connectStr, const T& methods, Getter getter, Matchmode mm = Matchmode::Default) {
     QByteArray normalizedSig = QMetaObject::normalizedSignature(connectStr->getString().data());
     StringRef expectedParams = signalSlotParameters(StringRef(normalizedSig.constData()));
     int bestMatch = 0;
@@ -640,16 +646,20 @@ static int findBestMatch(const StringLiteral* connectStr, const T& methods, Gett
                 paramsStr += ',';
             }
             paramsStr += QMetaObject::normalizedType(param->getType().getAsString().c_str()).constData();
+            if (mm == Matchmode::IncludeParamNames) {
+                paramsStr += " ";
+                paramsStr += param->getName();
+            }
         };
         uint distance = levenshtein_distance(expectedParams, paramsStr.str());
-        // outs() << "Distance between '" << expectedParams << "' and '" << paramsStr.str() << "' is " << distance << "\n";
+        outs() << "Distance between '" << expectedParams << "' and '" << paramsStr.str() << "' is " << distance << "\n";
         if (distance <= minDistance) {
             bestMatch = i;
             minDistance = distance;
-            // outs() << "Current best match is '" << paramsStr.str() << "', index = " << i << "\n";
+            outs() << "Current best match is '" << paramsStr.str() << "', index = " << i << "\n";
         }
     }
-    // outs() << "Final match is index = " << bestMatch << "\n";
+    outs() << "Final match is index = " << bestMatch << "\n";
     return bestMatch;
 }
 
@@ -691,7 +701,7 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
             StringRef currentPrivateMethod = signatureStr.slice(methodNameStartIdx, openBracketIdx).trim();
             StringRef parameters = signatureStr.slice(openBracketIdx + 1, closeBracketIdx).trim();
 
-            outs() << "method=" << currentPrivateMethod << ", params=(" << parameters << ")\n";
+            // outs() << "method=" << currentPrivateMethod << ", params=(" << parameters << ")\n";
 
             if (currentPrivateMethod == methodName) {
                 if (!expressionType) {
@@ -704,13 +714,13 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
                     errs() << "Could not find private slot " << methodName << " in " << expressionType->getQualifiedNameAsString() << "\n";
                     continue;
                 }
-                int index = findBestMatch(signature, candidates, [](const std::vector<FunctionDecl*>& v, size_t idx) { return v[idx]; });
+                int index = findBestMatch(signature, candidates, [](const std::vector<FunctionDecl*>& v, size_t idx) { return v[idx]; }, Matchmode::IncludeParamNames);
                 privateSlotInfo.push_back(ParamInfo{ candidates[index], parameters.str(), expressionStr->getString().str() } );
             }
 
         }
     }
-    outs() << "Found " << privateSlotInfo.size() << "candidates for Q_PRIVATE_SLOT "<< methodName;
+    // outs() << "Found " << privateSlotInfo.size() << "candidates for Q_PRIVATE_SLOT "<< methodName;
     if (privateSlotInfo.empty()) {
         return {};
     }

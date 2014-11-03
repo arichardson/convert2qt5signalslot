@@ -74,14 +74,14 @@ int main(int argc, char** argv) {
     obj.setObjectName("foo");
     if (TestPrivate::privateCount != 2) { abort(); }
 
-    QObject::connect(test, &Test::sig2, test, [&](int i2) { test->d->privateSlotOverloaded(i2); });
+    QObject::connect(test, &Test::sig2, test, [&](int i) { test->d->privateSlotOverloaded(i); });
     test->sig2(1);
     if (TestPrivate::privateCount != 3) { abort(); }
-    QObject::connect(test, &Test::sig3, test, [&](const char* str2) { test->d->privateSlotOverloaded(str2); });
+    QObject::connect(test, &Test::sig3, test, [&](const char* str) { test->d->privateSlotOverloaded(str); });
     test->sig3("foo");
     if (TestPrivate::privateCount != 4) { abort(); }
 
-    QObject::connect(test, &Test::sig4, test, [&](const char* str2, double d2) { test->d->privateSlotOverloaded(str2, d2); });
+    QObject::connect(test, &Test::sig4, test, [&](const char* str, double d) { test->d->privateSlotOverloaded(str, d); });
     test->sig4("foo", 2.2);
     if (TestPrivate::privateCount != 5) { abort(); }
 
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
     if (TestPrivate::privateCount != 7) { abort(); }
 
     // 2 arg -> 1 arg
-    QObject::connect(test, &Test::sig4, test, [&](const char* str2) { test->d->privateSlotOverloaded(str2); });
+    QObject::connect(test, &Test::sig4, test, [&](const char* str) { test->d->privateSlotOverloaded(str); });
     test->sig4("bar", 3.3);
     if (TestPrivate::privateCount != 8) { abort(); }
 
