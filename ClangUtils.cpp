@@ -75,7 +75,7 @@ static std::string getLeastQualifiedNameInternal(const clang::TagType* tt, const
 
     if (targetTypeQualifiers.size() < 2) {
         // no need to qualify the name if there is no surrounding context
-        return td->getNameAsString();
+        return ClangUtils::getNameWithTemplateParams(td, ast->getLangOpts());
     }
     auto usingDecls = collectAllUsingDecls(containingFunction,
             ClangUtils::sourceLocationBeforeStmt(callExpression, ast), ast->getSourceManager());
@@ -89,7 +89,7 @@ static std::string getLeastQualifiedNameInternal(const clang::TagType* tt, const
             outs() << "Using decl for " << td->getQualifiedNameAsString() << " exists, not qualifying\n";
         }
         // no need to qualify the name if there is a using decl for the current type
-        return td->getNameAsString();
+        return ClangUtils::getNameWithTemplateParams(td, ast->getLangOpts());
     }
 
     auto usingNamespaceDecls = collectAllUsingNamespaceDecls(containingFunction,
@@ -101,7 +101,7 @@ static std::string getLeastQualifiedNameInternal(const clang::TagType* tt, const
     // it's not neccessary if the current function scope is also inside that namespace/class
     // for some reason twine crashes here, use std::string
     llvm::SmallString<64> buffer;
-    buffer = td->getName();
+    buffer = ClangUtils::getNameWithTemplateParams(td, ast->getLangOpts());
     for (uint i = 1; i < targetTypeQualifiers.size(); ++i) {
         const DeclContext* ctx = targetTypeQualifiers[i];
         assert(ctx->isNamespace() || ctx->isRecord());
@@ -129,7 +129,7 @@ static std::string getLeastQualifiedNameInternal(const clang::TagType* tt, const
         } else if (ClangUtils::contains(usingDecls, isUsingDeclForContext)) {
             auto named = cast<NamedDecl>(ctx);
             // this is the last one we have to add since a using directive exists
-            auto name = named->getName();
+            auto name = ClangUtils::getNameWithTemplateParams(named, ast->getLangOpts());
             buffer.insert(buffer.begin(), colonColon.begin(), colonColon.end());
             buffer.insert(buffer.begin(), name.begin(), name.end());
             if (verbose) {
@@ -138,11 +138,11 @@ static std::string getLeastQualifiedNameInternal(const clang::TagType* tt, const
             break;
         } else {
             if (auto record = dyn_cast<CXXRecordDecl>(ctx)) {
-                auto name = record->getName();
+                auto name = ClangUtils::getNameWithTemplateParams(record, ast->getLangOpts());;
                 buffer.insert(buffer.begin(), colonColon.begin(), colonColon.end());
                 buffer.insert(buffer.begin(), name.begin(), name.end());
             } else if (auto ns = dyn_cast<NamespaceDecl>(ctx)) {
-                auto name = ns->getName();
+                auto name = ClangUtils::getNameWithTemplateParams(ns, ast->getLangOpts());;
                 buffer.insert(buffer.begin(), colonColon.begin(), colonColon.end());
                 buffer.insert(buffer.begin(), name.begin(), name.end());
             } else {
@@ -228,9 +228,9 @@ void ClangUtils::printParentContexts(const clang::DeclContext* base) {
     for (auto ctx : getParentContexts(base)) {
         outs() << "::";
         if (auto record = dyn_cast<clang::CXXRecordDecl>(ctx)) {
-            outs() << record->getName() << "(record)";
+            outs() << ClangUtils::getNameWithTemplateParams(record) << "(record)";
         } else if (auto ns = dyn_cast<clang::NamespaceDecl>(ctx)) {
-            outs() << ns->getName() << "(namespace)";
+            outs() << ClangUtils::getNameWithTemplateParams(ns) << "(namespace)";
         } else if (auto func = dyn_cast<clang::FunctionDecl>(ctx)) {
             if (isa<clang::CXXConstructorDecl>(ctx)) {
                 outs() << "(ctor)";
@@ -239,7 +239,7 @@ void ClangUtils::printParentContexts(const clang::DeclContext* base) {
             } else if (isa<clang::CXXConversionDecl>(ctx)) {
                 outs() << "(conversion)";
             } else {
-                outs() << func->getName() << "(func)";
+                outs() << ClangUtils::getNameWithTemplateParams(func) << "(func)";
             }
         } else if (dyn_cast<clang::TranslationUnitDecl>(ctx)) {
             outs() << "(translation unit)";

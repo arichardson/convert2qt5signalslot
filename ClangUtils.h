@@ -4,12 +4,15 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/StringRef.h>
 #include <clang/AST/Stmt.h>
+#include <clang/AST/Type.h>
 #include <clang/AST/Expr.h>
+#include <clang/AST/DeclTemplate.h>
 #include <clang/AST/ASTContext.h>
 #include <clang/Lex/Lexer.h>
 #include <clang/Basic/AllDiagnostics.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <unistd.h>
+#include <clang/AST/DeclCXX.h>
 
 namespace ClangUtils {
 
@@ -84,6 +87,22 @@ static inline ColouredOStream colouredErr(llvm::raw_ostream::Colors colour, bool
 
 static inline bool isNullPointerConstant(const clang::Expr* expr, clang::ASTContext* ctx) {
     return expr->isNullPointerConstant(*ctx, clang::Expr::NPC_NeverValueDependent) != clang::Expr::NPCK_NotNull;
+}
+
+static inline std::string getNameWithTemplateParams(const clang::NamedDecl* decl, const clang::LangOptions& opts = clang::LangOptions()) {
+    if (const clang::ClassTemplateSpecializationDecl* classTemplate = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(decl)){
+        // See NamedDecl::printQualifiedName
+        std::string ret;
+        llvm::raw_string_ostream out(ret);
+        out << decl->getName();
+        const clang::TemplateArgumentList& args = classTemplate->getTemplateArgs();
+        clang::PrintingPolicy pp(opts);
+        clang::TemplateSpecializationType::PrintTemplateArgumentList(out, args.data(), args.size(), pp);
+        out.flush();
+        return ret;
+    } else {
+        return decl->getName();
+    }
 }
 
 namespace {

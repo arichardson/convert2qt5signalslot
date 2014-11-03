@@ -14,7 +14,7 @@ public:
 
 int main() {
     Foo<int> foo;
-    QObject::connect(&foo, &Foo<int>::objectNameChanged, &foo, &Foo<int>::templateSlot);
+    QObject::connect(&foo, &Foo<int>::objectNameChanged, &foo, &Foo<int>::deleteLater);
     Bar<int> bar1;
     QObject::connect(&bar1, &Bar<int>::objectNameChanged, &bar1, &Bar<int>::templateSlot);
     Bar<int, 42> bar2; // non-default second arg
