@@ -697,6 +697,21 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
                 currentCompilerInstance->getDiagnostics().Report(signature->getLocStart(), badQPrivateSlotDiagId) << signatureStr << sourceRangeForStmt(signature, lastAstContext);
                 continue;
             }
+            for (CXXMethodDecl* decl : expressionType->methods()) {
+                if (decl->isOverloadedOperator()) {
+                    if (decl->getOverloadedOperator() == OO_Arrow) {
+                        auto arrowReturnType = decl->getReturnType()->getPointeeCXXRecordDecl();
+                        // outs() << "Found arrow operator in " <<  expressionType->getQualifiedNameAsString() <<  ": " << decl->getReturnType().getCanonicalType().getAsString()  << "\n";
+                        if (arrowReturnType) {
+                            //outs() << "arrow return type is " << arrowReturnType->getQualifiedNameAsString() << "\n";
+                            expressionType = arrowReturnType;
+                            break;
+                        } else {
+                            errs() << "expressionType->getQualifiedNameAsString()::operator->() return type is not a pointer to a record!\n";
+                        }
+                    }
+                }
+            }
 
             StringRef currentPrivateMethod = signatureStr.slice(methodNameStartIdx, openBracketIdx).trim();
             StringRef parameters = signatureStr.slice(openBracketIdx + 1, closeBracketIdx).trim();
