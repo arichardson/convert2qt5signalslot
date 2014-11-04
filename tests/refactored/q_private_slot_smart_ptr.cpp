@@ -13,7 +13,7 @@ class Test : public QObject {
     Q_OBJECT
 public:
     Test() : d(new TestPrivate()) {
-        QObject::connect(this, &Test::sig, this, [&]() { d->privateSlot(); });
+        connect(this, &Test::sig, this, [&]() { d->privateSlot(); });
     }
     virtual ~Test();
 Q_SIGNALS:
@@ -47,7 +47,7 @@ public:
 
 Test2::Test2(): QObject(), d(new Private())
 {
-    QObject::connect(this, &Test2::sig2, this, [&]() { d->privateSlot2(); });
+    connect(this, &Test2::sig2, this, [&]() { d->privateSlot2(); });
 }
 
 Test2::~Test2(){}
@@ -57,8 +57,8 @@ int main(int argc, char** argv) {
     Test* test = new Test();
     Test2* test2 = new Test2();
     QObject obj;
-    QObject::connect(&obj, &QObject::objectNameChanged, [&]() { test->d->privateSlot(); });
-    QObject::connect(&obj, &QObject::objectNameChanged, [&]() { test2->d->privateSlot2(); });
+    QObject::connect(&obj, &QObject::objectNameChanged, test, [&]() { test->d->privateSlot(); });
+    QObject::connect(&obj, &QObject::objectNameChanged, test2, [&]() { test2->d->privateSlot2(); });
     obj.setObjectName("foo");
 }
 
