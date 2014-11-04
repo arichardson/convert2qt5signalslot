@@ -33,7 +33,7 @@ Q_SIGNALS:
     void sig2();
 public:
     class Private;
-    QScopedPointer<Private> d;
+    std::unique_ptr<Private> d;
 private:
     Q_PRIVATE_SLOT(d, void privateSlot2())
 };
