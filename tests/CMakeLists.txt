@@ -53,6 +53,7 @@ simple_converter_unit_test(qquickitem 12 3)
 simple_converter_unit_test(overloads 17 17)
 simple_converter_unit_test(normalized_signatures 9 9)
 simple_converter_unit_test(q_private_slot 10 10)
+simple_converter_unit_test(q_private_slot_smart_ptr 4 4)
 simple_converter_unit_test(template_class 3 3)
 simple_converter_unit_test(enum_scoping 2 2)
 add_test(NAME q_private_slot-qt4style COMMAND q_private_slot-qt4style) # make sure slots are called 10 times
