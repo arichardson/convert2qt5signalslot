@@ -199,7 +199,7 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type, const clang:
         printPol.SuppressTagKeyword = true;
         printPol.LangOpts.CPlusPlus = true;
         printPol.LangOpts.CPlusPlus11 = true;
-        result = type.getAsString(printPol); // could be builtin type e.g. int
+        result = type.getLocalUnqualifiedType().getAsString(printPol); // could be builtin type e.g. int
     }
     // outs() << "least qualified name for " << QualType::getAsString(type.getTypePtr(), Qualifiers()) << " is " << (prepend + result + append) << "\n";
     // outs() << "pre='" << prepend << "', result='" << result << "', append='" << append << "'\n";
