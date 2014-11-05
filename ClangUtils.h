@@ -97,6 +97,10 @@ static inline std::string getNameWithTemplateParams(const clang::NamedDecl* decl
         out << decl->getName();
         const clang::TemplateArgumentList& args = classTemplate->getTemplateArgs();
         clang::PrintingPolicy pp(opts);
+        pp.SuppressTagKeyword = true;
+        pp.SuppressTag = true;
+        pp.LangOpts.CPlusPlus = true;
+        pp.LangOpts.CPlusPlus11 = true;
         clang::TemplateSpecializationType::PrintTemplateArgumentList(out, args.data(), args.size(), pp);
         out.flush();
         return ret;
