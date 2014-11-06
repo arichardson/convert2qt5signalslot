@@ -40,7 +40,7 @@ struct DiagConsumer : clang::DiagnosticConsumer {
         */
         auto diagId = Info.getID();
         if (diagId == clang::diag::warn_unused_expr) {
-            llvm::outs() << "Skipping unused expr\n";
+            // llvm::outs() << "Skipping unused expr\n";
             //const_cast<clang::DiagnosticsEngine *>(Info.getDiags())->Reset();
         } else {
             Proxy->HandleDiagnostic(DiagLevel, Info);
