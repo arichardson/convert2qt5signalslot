@@ -45,6 +45,7 @@ public:
         connect(this, &Test::sig, this, [&]() { d->privateSlot(); });
     }
     virtual ~Test();
+    void ensureNoSuperflousThisAdded();
 Q_SIGNALS:
     void sig();
     void sig2(int);
@@ -67,6 +68,10 @@ private:
 
 Test::~Test() {
     delete d;
+}
+
+void Test::ensureNoSuperflousThisAdded() {
+    connect(this, &Test::sig3, this, [&](const char* str) { d->privateSlotOverloaded(str); });
 }
 
 int main(int argc, char** argv) {
