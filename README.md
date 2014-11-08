@@ -3,6 +3,21 @@ convert2qt5signalslot
 
 Convert from Qt4 signal/slot syntax to the new Qt5 style
 
+
+Installation
+------------
+
+Packages for openSUSE 13.2 and openSUSE Tumbleweed are available at http://download.opensuse.org/repositories/home:/a_richardson/, otherwise you will have to build from source.
+
+Assuming you have the development files for clang and Qt5 installed the following commands should produce a valid installation:
+```
+mkdir build
+cd build
+cmake ..
+make
+sudo make install
+```
+
 Usage
 -----
 
