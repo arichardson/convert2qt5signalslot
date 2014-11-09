@@ -3,6 +3,8 @@
 #include "ClangUtils.h"
 #include <clang/Lex/Preprocessor.h>
 
+#include <QtGlobal>
+
 static const char* Q_PRIVATE_SLOT_definition =
         "#undef Q_PRIVATE_SLOT\n"
         "#ifndef CONVERT_SIGNALS_TOKENPASTE\n"

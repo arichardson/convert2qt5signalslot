@@ -4,6 +4,10 @@
 #include <clang/Tooling/Refactoring.h>
 #include <atomic>
 
+#include <QFileInfo>
+#include <QFile>
+#include <QDir>
+
 namespace clang {
     class Sema;
 }
@@ -91,12 +95,14 @@ private:
     ConnectCallMatcher matcher;
 };
 
-static inline std::string getRealPath(const std::string& path) {
-    char buf[PATH_MAX];
-    const char* ret = realpath(path.c_str(), buf);
-    if (!ret) {
-        //resolving failed, could be a virtual path
-        return path;
+static inline std::string getRealPath(llvm::StringRef path) {
+    QFileInfo fi(QFile::decodeName(path.str().c_str()));
+    QString ret = fi.canonicalFilePath();
+    if (Q_UNLIKELY(ret.isEmpty())) {
+        // file does not exists (have to handle this case in the tests)
+        // just remove '..', duplicate '/', etc and make absolute
+        ret = QDir::cleanPath(fi.absoluteFilePath());
     }
-    return std::string(ret);
+    // llvm::outs() << "getRealPath(" << path << ") = " << ret.toStdString() << "\n";
+    return ret.toStdString();
 }

@@ -11,8 +11,15 @@
 #include <clang/Lex/Lexer.h>
 #include <clang/Basic/AllDiagnostics.h>
 #include <clang/Frontend/CompilerInstance.h>
-#include <unistd.h>
 #include <clang/AST/DeclCXX.h>
+
+#include <QtGlobal> // uint
+
+#ifdef Q_OS_WIN
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace ClangUtils {
 
