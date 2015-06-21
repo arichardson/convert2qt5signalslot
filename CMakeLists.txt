@@ -49,9 +49,12 @@ target_link_libraries(converter
   Clang::Parse
   Clang::Driver
   Clang::Edit
-
   Qt5::Core #QMetaObject::normalizedSignature
 )
+
+if(${Clang_VERSION} VERSION_GREATER 3.5.0)
+  target_link_libraries(converter Clang::ToolingCore)
+endif()
 
 add_executable(convert2qt5signalslot main.cpp)
 target_link_libraries(convert2qt5signalslot converter)

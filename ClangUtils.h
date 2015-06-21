@@ -26,7 +26,9 @@ namespace ClangUtils {
 
 struct DiagConsumer : clang::DiagnosticConsumer {
     std::unique_ptr<DiagnosticConsumer> Proxy;
-    DiagConsumer(DiagnosticConsumer *Previous) : Proxy(Previous) {}
+    DiagConsumer(DiagnosticConsumer *Previous) : Proxy(Previous) {
+        assert(Previous);
+    }
     int HadRealError = 0;
 
     void BeginSourceFile(const clang::LangOptions& LangOpts, const clang::Preprocessor* PP = 0) override {
@@ -42,9 +44,6 @@ struct DiagConsumer : clang::DiagnosticConsumer {
         Proxy->finish();
     }
     void HandleDiagnostic(clang::DiagnosticsEngine::Level DiagLevel, const clang::Diagnostic& Info) override {
-        /* Moc ignores most of the errors since it even can operate on non self-contained headers.
-        * So try to change errors into warning.
-        */
         auto diagId = Info.getID();
         if (diagId == clang::diag::warn_unused_expr) {
             // llvm::outs() << "Skipping unused expr\n";

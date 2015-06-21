@@ -869,11 +869,12 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
 #if CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 6
     // 3.6 expects a unique_ptr here
     pp.addPPCallbacks(llvm::make_unique<ConverterPPCallbacks>(pp));
+    CI.getDiagnostics().setClient(new ClangUtils::DiagConsumer(CI.getDiagnostics().takeClient().release()));
 #else
     pp.addPPCallbacks(new ConverterPPCallbacks(pp));
+    CI.getDiagnostics().setClient(new ClangUtils::DiagConsumer(CI.getDiagnostics().takeClient()));
 #endif
 
-    CI.getDiagnostics().setClient(new ClangUtils::DiagConsumer(CI.getDiagnostics().takeClient()));
     badQPrivateSlotDiagId = CI.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning, "Invalid Q_PRIVATE_SLOT signature: '%0'");
 
     return true;
