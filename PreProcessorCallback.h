@@ -32,12 +32,12 @@ public:
     void addQ_PRIVATE_SLOT_definition(clang::SourceLocation origLoc) {
         clang::SourceLocation location = pp.getSourceManager().getFileLoc(origLoc);
         pp.EnterSourceFile(pp.getSourceManager().createFileID(llvm::MemoryBuffer::getMemBuffer(Q_PRIVATE_SLOT_definition, "q_private_slot_defintion.moc"),
-                clang::SrcMgr::C_System), nullptr, location);
+                clang::SrcMgr::C_System, 0, 0, location), nullptr, location);
     }
 protected:
-    void MacroUndefined(const clang::Token& token, const clang::MacroDirective*) override {
+    void MacroUndefined(const clang::Token& token, const clang::MacroDirective* md) override {
         if (token.getIdentifierInfo()->getName() == "Q_PRIVATE_SLOT") {
-            //llvm::outs() << "Q_PRIVATE_SLOT undefined\n";
+            // llvm::errs() << "Q_PRIVATE_SLOT undefined at " << token.getLocation().printToString(pp.getSourceManager()) << "\n";
             if (!addingQ_PRIVATE_SLOT_defintion) {
                 pp.getDiagnostics().Report(token.getLocation(), undefWarningDiagId) << "Q_PRIVATE_SLOT";
                 // we have to redefine it to what it should be
@@ -57,7 +57,7 @@ protected:
         }
 #endif
         if (macroName == "Q_PRIVATE_SLOT") {
-            //llvm::outs() << "Q_PRIVATE_SLOT defined\n" << "at" << location << mdLocation;
+            // llvm::errs() << "Q_PRIVATE_SLOT defined at " << md->getLocation().printToString(pp.getSourceManager()) << "\n";
             if (!addingQ_PRIVATE_SLOT_defintion) {
                 llvm::StringRef fileName = pp.getSourceManager().getPresumedLoc(token.getLocation()).getFilename();
                 //llvm::errs() << "redefinition location: " << fileName << "\n";
@@ -73,7 +73,7 @@ protected:
 
     void FileChanged(clang::SourceLocation loc, FileChangeReason reason, clang::SrcMgr::CharacteristicKind, clang::FileID prevFID) override {
         clang::PresumedLoc presumedLoc = pp.getSourceManager().getPresumedLoc(loc, false);
-        //llvm::outs() << "File changed: name=" << presumedLoc.getFilename() << ", reason=" << reason << "\n";
+        // llvm::errs() << "File changed: name=" << presumedLoc.getFilename() << ", reason=" << reason << "\n";
         if (strcmp(presumedLoc.getFilename(), "q_private_slot_defintion.moc") == 0) {
             if (reason == EnterFile) {
                 addingQ_PRIVATE_SLOT_defintion = true;
