@@ -42,7 +42,7 @@ static const auto isNewline = [](char c) {return c == '\n';};
 
 static bool runTool(clang::FrontendAction *toolAction, const std::string code, const AdditionalFiles& additionalFiles, const std::vector<std::string>& extraOptions) {
     static const std::vector<const char*> qt5CompileDefs = { QT5_REQUIRED_COMPILER_FLAGS };
-    std::vector<std::string> commands { "clang", "-v", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR, "-isystem", CLANG_BUILTIN_INCLUDES_PATH };
+    std::vector<std::string> commands { "clang", "-v", "-Wall", "-fsyntax-only", "-std=c++11", "-I", INCLUDE_DIR };
     for (const auto& opt : extraOptions) {
         commands.push_back(opt);
     }
@@ -50,6 +50,8 @@ static bool runTool(clang::FrontendAction *toolAction, const std::string code, c
         commands.push_back(opt);
     }
     commands.push_back(FILE_NAME);
+    commands.push_back("-isystem");
+    commands.push_back(CLANG_BUILTIN_INCLUDES_PATH);
     clang::FileSystemOptions opt;
     opt.WorkingDir = BASE_DIR;
     clang::FileManager* files = new clang::FileManager{ opt };
