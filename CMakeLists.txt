@@ -9,7 +9,8 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 find_package(Clang 3.5 MODULE REQUIRED)
 find_package(Qt5Core 5.3.0 CONFIG REQUIRED)
 
-link_directories( ${LLVM_LIB_DIR} )
+# LLVM_DEFINITIONS are not added to the imported targets...
+add_definitions(${LLVM_DEFINITIONS})
 include_directories(${CLANG_INCLUDE_DIRS})
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
