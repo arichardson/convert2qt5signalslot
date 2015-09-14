@@ -174,7 +174,7 @@ static void foundWrongCall(llvm::raw_string_ostream& out, const ConnectCallMatch
     out << ")\n";
 }
 
-static void foundWithoutStringLiterals(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) Q_NORETURN {
+Q_NORETURN static void foundWithoutStringLiterals(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
     std::string buf;
     llvm::raw_string_ostream out(buf);
     out << "Found QObject::" << p.decl->getName() << "() call that doesn't use SIGNAL()/SLOT() inside function "
@@ -259,6 +259,7 @@ static inline bool isStlSmartPointerOperatorArrow(const Expr* expr, ASTContext* 
 }
 
 static inline bool isQPointerImplicitConversion(const Expr* expr, ASTContext* ctx) {
+    Q_UNUSED(ctx)
     if (const CXXMemberCallExpr* memberCall = dyn_cast<CXXMemberCallExpr>(expr->IgnoreImplicit())) {
         if (!isa<CXXConversionDecl>(memberCall->getCalleeDecl())) {
             return false;
@@ -345,7 +346,7 @@ void ConnectCallMatcher::convertConnect(ConnectCallMatcher::Parameters& p, const
     if (!p.signalLiteral || !p.slotLiteral) {
         // both signal and slot must be string literals (SIGNAL()/SLOT() expansion)
         foundWithoutStringLiterals(p, result);
-        return;
+        Q_UNREACHABLE();
     }
 
     matchFound(p, result);
@@ -632,12 +633,12 @@ enum class Matchmode {
  * @return an index into @p methods
  */
 template<typename T, typename Getter>
-static uint findBestMatch(const StringLiteral* connectStr, const T& methods, Getter getter, Matchmode mm = Matchmode::Default) {
+static size_t findBestMatch(const StringLiteral* connectStr, const T& methods, Getter getter, Matchmode mm = Matchmode::Default) {
     QByteArray normalizedSig = QMetaObject::normalizedSignature(connectStr->getString().data());
     StringRef expectedParams = signalSlotParameters(StringRef(normalizedSig.constData()));
-    uint bestMatch = 0;
+    size_t bestMatch = 0;
     uint minDistance = std::numeric_limits<uint>::max();
-    for (uint i = 0; i < methods.size(); ++i) {
+    for (size_t i = 0; i < methods.size(); ++i) {
         const FunctionDecl* decl = getter(methods, i);
         llvm::SmallString<64> paramsStr;
         bool first = true;
@@ -731,7 +732,7 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
                     errs() << "Could not find private slot " << methodName << " in " << expressionType->getQualifiedNameAsString() << "\n";
                     continue;
                 }
-                int index = findBestMatch(signature, candidates, [](const std::vector<FunctionDecl*>& v, size_t idx) { return v[idx]; }, Matchmode::IncludeParamNames);
+                size_t index = findBestMatch(signature, candidates, [](const std::vector<FunctionDecl*>& v, size_t idx) { return v[idx]; }, Matchmode::IncludeParamNames);
                 privateSlotInfo.push_back(ParamInfo{ candidates[index], parameters.str(), expressionStr->getString().str() } );
             }
 
@@ -741,7 +742,7 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
     if (privateSlotInfo.empty()) {
         return {};
     }
-    uint chosenInfoIndex = 0;
+    size_t chosenInfoIndex = 0;
     if (privateSlotInfo.size() > 1) {
         // find the parameters that differ the least from the SLOT() argument
         chosenInfoIndex = findBestMatch(connectStr, privateSlotInfo, [](const std::vector<ParamInfo>& v, size_t index) { return v[index].method; });
@@ -772,7 +773,6 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
     result += "); }";
     // outs() << "PRIVATE RESULT: " << result << "\n";
     return result.str().str();
-    return {};
 }
 
 
@@ -816,7 +816,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
             outs() << type->getName() << "::" << methodName << " is a overloaded signal/slot. Found "
                     << results.size() << " overloads.\n";
         }
-        int methodIndex = findBestMatch(connectStr, results, [](const std::vector<FunctionDecl*>& v, size_t idx) { return v[idx]; });
+        size_t methodIndex = findBestMatch(connectStr, results, [](const std::vector<FunctionDecl*>& v, size_t idx) { return v[idx]; });
         FunctionDecl* chosenMethod = results[methodIndex];
         replacement += "static_cast<";
         replacement += getLeastQualifiedName(chosenMethod->getReturnType(), p.containingFunction, p.call, verboseMode, &currentCompilerInstance->getASTContext());

@@ -147,7 +147,7 @@ static std::string getLeastQualifiedNameInternal(const clang::TagType* tt, const
                 buffer.insert(buffer.begin(), name.begin(), name.end());
             } else {
                 // this should never happen
-                outs() << "Weird type:" << ctx->getDeclKindName() << ":" << (void*) ctx << "\n";
+                outs() << "Weird type:" << ctx->getDeclKindName() << ":" << static_cast<const void*>(ctx) << "\n";
                 ClangUtils::printParentContexts(td);
             }
         }

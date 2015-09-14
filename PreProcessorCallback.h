@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ClangUtils.h"
+#include <llvm/ADT/StringRef.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Basic/Version.h>
 
@@ -32,7 +33,7 @@ protected:
 
     void MacroDefined(const clang::Token& token, const clang::MacroDirective* md) override;
     void FileChanged(clang::SourceLocation loc, FileChangeReason reason, clang::SrcMgr::CharacteristicKind, clang::FileID prevFID) override;
-    bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override;
+    bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl<char>& RecoveryPath) override;
 
 //    void InclusionDirective(clang::SourceLocation, const clang::Token&, llvm::StringRef FileName, bool, clang::CharSourceRange, const clang::FileEntry*, llvm::StringRef, llvm::StringRef, const clang::Module*) override {
 //        llvm::errs() << "InclusionDirective: " << FileName << "\n";
