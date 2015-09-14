@@ -29,6 +29,7 @@ struct DiagConsumer : clang::DiagnosticConsumer {
     DiagConsumer(DiagnosticConsumer *Previous) : Proxy(Previous) {
         assert(Previous);
     }
+    virtual ~DiagConsumer();
     int HadRealError = 0;
 
     void BeginSourceFile(const clang::LangOptions& LangOpts, const clang::Preprocessor* PP = 0) override {
@@ -60,7 +61,9 @@ struct ColouredOStream {
         if (isTTY) {
             stream.changeColor(colour, bold);
         }
-    };
+    }
+    ColouredOStream(const ColouredOStream&) = delete;
+    ColouredOStream(const ColouredOStream&& c) : stream(c.stream), isTTY(c.isTTY) {}
     ~ColouredOStream() {
         if (isTTY) {
             stream.resetColor();

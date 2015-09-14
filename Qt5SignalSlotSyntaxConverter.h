@@ -1,4 +1,5 @@
 #pragma once
+#include <clang/Sema/Sema.h>
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Tooling/Refactoring.h>
@@ -8,12 +9,8 @@
 #include <QFile>
 #include <QDir>
 
-namespace clang {
-    class Sema;
-}
-
+extern llvm::cl::OptionCategory clCategory;
 extern llvm::cl::opt<std::string> nullPtrString;
-
 
 using clang::ast_matchers::MatchFinder;
 

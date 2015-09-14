@@ -313,3 +313,4 @@ std::vector<clang::FunctionDecl*> ClangUtils::lookupFunctionsInClass(StringRef m
     return results;
 }
 
+ClangUtils::DiagConsumer::~DiagConsumer() {}

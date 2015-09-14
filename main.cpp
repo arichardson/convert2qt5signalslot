@@ -6,9 +6,6 @@
 using namespace clang::tooling;
 
 static llvm::cl::extrahelp common_help(CommonOptionsParser::HelpMessage);
-extern llvm::cl::OptionCategory clCategory;
-
-
 
 int main(int argc, const char* argv[]) {
   CommonOptionsParser options(argc, argv, clCategory);

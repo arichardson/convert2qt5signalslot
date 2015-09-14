@@ -15,32 +15,31 @@ include_directories(${CLANG_INCLUDE_DIRS})
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   message(STATUS "Compiling using clang++")
-  add_definitions("-std=c++11 -fno-rtti -Wall -pedantic -Weverything -Wno-global-constructors -Wno-c++98-compat -Wno-exit-time-destructors")
+  add_compile_options(-std=c++11 -fno-rtti -Wall -pedantic -Weverything -Wno-global-constructors -Wno-c++98-compat -Wno-exit-time-destructors -Wno-shadow -Wno-padded)
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   message(STATUS "Compiling using g++")
-  add_definitions("-std=c++11 -fno-rtti -Wall -pedantic")
+  add_compile_options(-std=c++11 -fno-rtti -Wall -pedantic)
 else()
   message(FATAL_ERROR "Using unknown compiler, don't know how to activate C++11")
+endif()
+
+option(USE_OLD_CXX11_ABI "Whether to build with GCC 5 old C++11 ABI. Might be needed depending on how the clang libs were built" OFF)
+if(USE_OLD_CXX11_ABI)
+  add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 endif()
 
 #get path to clang internal include dir (while that is not fixed in clang)
 configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
 
 
-add_library(converter STATIC Qt5SignalSlotSyntaxConverter.cpp ClangUtils.cpp)
-target_link_libraries(converter
+add_library(converter STATIC Qt5SignalSlotSyntaxConverter.cpp ClangUtils.cpp PreProcessorCallback.cpp)
+target_link_libraries(converter PUBLIC
   LLVMSupport
-  LLVMCore
-  LLVMObject
-  LLVMTarget
-  LLVMAnalysis
-  LLVMipa
-  LLVMTransformUtils
-  LLVMOption
   Clang::Tooling
   Clang::AST
   Clang::ASTMatchers
   Clang::Basic
+  Clang::CodeGen
   Clang::Frontend
   Clang::Lex
   Clang::Sema
@@ -54,7 +53,7 @@ target_link_libraries(converter
 )
 
 if(${Clang_VERSION} VERSION_GREATER 3.5.0)
-  target_link_libraries(converter Clang::ToolingCore)
+  target_link_libraries(converter PUBLIC Clang::ToolingCore)
 endif()
 
 add_executable(convert2qt5signalslot main.cpp)

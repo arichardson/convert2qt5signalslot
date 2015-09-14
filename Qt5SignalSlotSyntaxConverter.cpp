@@ -1,7 +1,4 @@
 #include "Qt5SignalSlotSyntaxConverter.h"
-#include "PreProcessorCallback.h"
-#include "ClangUtils.h"
-#include "config.h" // CLANG_BUILTIN_INCLUDES_PATH
 
 #include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/Basic/SourceManager.h>
@@ -13,7 +10,6 @@
 #include <clang/Lex/Lexer.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Lex/HeaderSearch.h>
-#include <clang/Sema/Sema.h>
 #include <clang/Sema/Scope.h>
 #include <clang/Sema/Lookup.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -23,6 +19,10 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/SmallVector.h>
+
+#include "PreProcessorCallback.h"
+#include "ClangUtils.h"
+#include "config.h" // CLANG_BUILTIN_INCLUDES_PATH
 
 #include <atomic>
 #include <stdexcept>
@@ -174,7 +174,7 @@ static void foundWrongCall(llvm::raw_string_ostream& out, const ConnectCallMatch
     out << ")\n";
 }
 
-static void foundWithoutStringLiterals(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) {
+static void foundWithoutStringLiterals(const ConnectCallMatcher::Parameters& p, const MatchFinder::MatchResult& result) Q_NORETURN {
     std::string buf;
     llvm::raw_string_ostream out(buf);
     out << "Found QObject::" << p.decl->getName() << "() call that doesn't use SIGNAL()/SLOT() inside function "
@@ -228,6 +228,7 @@ void ConnectCallMatcher::convert(const MatchFinder::MatchResult& result) {
 
 
 static bool isSmartPointerOperatorArrow(const Expr* expr, std::initializer_list<const char*> classes, ASTContext* ctx) {
+    Q_UNUSED(ctx)
     auto opCall = dyn_cast<CXXOperatorCallExpr>(expr->IgnoreImplicit());
     if (!opCall) {
         return false;
@@ -252,6 +253,7 @@ static inline bool isQtSmartPointerOperatorArrow(const Expr* expr, ASTContext* c
 }
 
 static inline bool isStlSmartPointerOperatorArrow(const Expr* expr, ASTContext* ctx) {
+    Q_UNUSED(ctx)
     // at least with libstdc++ shared_ptr operator-> is inside class __shared_ptr
     return isSmartPointerOperatorArrow(expr, { "unique_ptr", "shared_ptr", "__shared_ptr" }, ctx);
 }
@@ -630,12 +632,12 @@ enum class Matchmode {
  * @return an index into @p methods
  */
 template<typename T, typename Getter>
-static int findBestMatch(const StringLiteral* connectStr, const T& methods, Getter getter, Matchmode mm = Matchmode::Default) {
+static uint findBestMatch(const StringLiteral* connectStr, const T& methods, Getter getter, Matchmode mm = Matchmode::Default) {
     QByteArray normalizedSig = QMetaObject::normalizedSignature(connectStr->getString().data());
     StringRef expectedParams = signalSlotParameters(StringRef(normalizedSig.constData()));
-    int bestMatch = 0;
+    uint bestMatch = 0;
     uint minDistance = std::numeric_limits<uint>::max();
-    for (size_t i = 0; i < methods.size(); ++i) {
+    for (uint i = 0; i < methods.size(); ++i) {
         const FunctionDecl* decl = getter(methods, i);
         llvm::SmallString<64> paramsStr;
         bool first = true;
