@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ClangUtils.h"
 #include <llvm/ADT/StringRef.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Basic/Version.h>

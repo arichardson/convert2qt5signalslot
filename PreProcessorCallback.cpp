@@ -76,7 +76,7 @@ void ConverterPPCallbacks::FileChanged(clang::SourceLocation loc, clang::PPCallb
     }
 }
 
-bool ConverterPPCallbacks::FileNotFound(StringRef FileName, llvm::SmallVectorImpl<char>& RecoveryPath) {
+bool ConverterPPCallbacks::FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl<char>& RecoveryPath) {
     Q_UNUSED(RecoveryPath)
     // llvm::errs() << "File not found: " << FileName << "\n";
     if (FileName.endswith(".moc") || FileName.startswith("moc_") || FileName.endswith("_moc.cpp")) {
