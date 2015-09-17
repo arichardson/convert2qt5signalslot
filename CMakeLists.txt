@@ -31,30 +31,32 @@ endif()
 #get path to clang internal include dir (while that is not fixed in clang)
 configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
 
-
-add_library(converter STATIC Qt5SignalSlotSyntaxConverter.cpp ClangUtils.cpp PreProcessorCallback.cpp)
-target_link_libraries(converter PUBLIC
-  LLVMSupport
-  Clang::Tooling
-  Clang::AST
-  Clang::ASTMatchers
-  Clang::Basic
-  Clang::CodeGen
-  Clang::Frontend
-  Clang::Lex
-  Clang::Sema
+# we have to make sure these libraries are in the right order so that linking with static libs works
+set(REQUIRED_CLANG_LIBS Clang::Tooling)
+if(${Clang_VERSION} VERSION_GREATER 3.5.0)
+  list(APPEND REQUIRED_CLANG_LIBS Clang::ToolingCore)
+endif()
+list(APPEND REQUIRED_CLANG_LIBS
   Clang::Rewrite
+  Clang::ASTMatchers
+  Clang::Frontend
+  Clang::Parse
+  Clang::Sema
   Clang::Analysis
   Clang::Serialization
-  Clang::Parse
   Clang::Driver
   Clang::Edit
-  Qt5::Core #QMetaObject::normalizedSignature
+  Clang::Lex
+  Clang::AST
+  Clang::Basic
+  LLVMCodeGen
+  LLVMObject
+  LLVMOption
+  LLVMSupport
 )
 
-if(${Clang_VERSION} VERSION_GREATER 3.5.0)
-  target_link_libraries(converter PUBLIC Clang::ToolingCore)
-endif()
+add_library(converter STATIC Qt5SignalSlotSyntaxConverter.cpp ClangUtils.cpp PreProcessorCallback.cpp)
+target_link_libraries(converter PUBLIC Qt5::Core ${REQUIRED_CLANG_LIBS})
 
 add_executable(convert2qt5signalslot main.cpp)
 target_link_libraries(convert2qt5signalslot converter)
