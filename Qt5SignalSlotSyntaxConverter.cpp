@@ -848,7 +848,11 @@ void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
     // !!!! when using asString it is very important to write "const char *" and not "const char*", since that doesn't work
     // handle both connect overloads with SIGNAL() and SLOT()
     matchFinder->addMatcher(id("callExpr", callExpr(
+#if CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 8
+            hasDeclaration(id("decl", cxxMethodDecl(
+#else
             hasDeclaration(id("decl", methodDecl(
+#endif
                     anyOf(
                         hasName("::QObject::connect"),
                         hasName("::QObject::disconnect")
