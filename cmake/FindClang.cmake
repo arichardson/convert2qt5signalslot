@@ -96,6 +96,8 @@ FIND_AND_ADD_CLANG_LIB(StaticAnalyzerCore)
 FIND_AND_ADD_CLANG_LIB(StaticAnalyzerFrontend)
 FIND_AND_ADD_CLANG_LIB(RewriteCore)
 FIND_AND_ADD_CLANG_LIB(ASTMatchers)
+FIND_AND_ADD_CLANG_LIB(Format)
+FIND_AND_ADD_CLANG_LIB(ToolingInclusions)
 
 if(CLANG_LIBS)
   set(Clang_FOUND TRUE)

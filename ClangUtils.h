@@ -8,6 +8,7 @@
 #include <clang/AST/Expr.h>
 #include <clang/AST/DeclTemplate.h>
 #include <clang/AST/ASTContext.h>
+#include <clang/Basic/Version.h>
 #include <clang/Lex/Lexer.h>
 #include <clang/Basic/AllDiagnostics.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -29,10 +30,10 @@ struct DiagConsumer : clang::DiagnosticConsumer {
     DiagConsumer(DiagnosticConsumer *Previous) : Proxy(Previous) {
         assert(Previous);
     }
-    virtual ~DiagConsumer();
+    ~DiagConsumer() override;
     int HadRealError = 0;
 
-    void BeginSourceFile(const clang::LangOptions& LangOpts, const clang::Preprocessor* PP = 0) override {
+    void BeginSourceFile(const clang::LangOptions& LangOpts, const clang::Preprocessor* PP = nullptr) override {
         Proxy->BeginSourceFile(LangOpts, PP);
     }
     void clear() override {
@@ -106,11 +107,20 @@ static inline std::string getNameWithTemplateParams(const clang::NamedDecl* decl
         out << decl->getName();
         const clang::TemplateArgumentList& args = classTemplate->getTemplateArgs();
         clang::PrintingPolicy pp(opts);
+        pp.UseVoidForZeroParams = false;
+        pp.Bool = true;
+        pp.Alignof = true;
         pp.SuppressTagKeyword = true;
+#if CLANG_VERSION_MAJOR >= 7
+        pp.IncludeTagDefinition = true;
+        pp.adjustForCPlusPlus();
+        clang::printTemplateArgumentList(out, args.asArray(), pp);
+#else
         pp.SuppressTag = true;
         pp.LangOpts.CPlusPlus = true;
         pp.LangOpts.CPlusPlus11 = true;
         clang::TemplateSpecializationType::PrintTemplateArgumentList(out, args.data(), args.size(), pp);
+#endif
         out.flush();
         return ret;
     } else {

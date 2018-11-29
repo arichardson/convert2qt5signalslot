@@ -197,8 +197,12 @@ std::string ClangUtils::getLeastQualifiedName(clang::QualType type, const clang:
         // outs() << type.getAsString() << " is not a tag type\n";
         PrintingPolicy printPol(ast->getLangOpts());
         printPol.SuppressTagKeyword = true;
+#if CLANG_VERSION_MAJOR >= 7
+        printPol.adjustForCPlusPlus();
+#else
         printPol.LangOpts.CPlusPlus = true;
         printPol.LangOpts.CPlusPlus11 = true;
+#endif
         result = type.getLocalUnqualifiedType().getAsString(printPol); // could be builtin type e.g. int
     }
     // outs() << "least qualified name for " << QualType::getAsString(type.getTypePtr(), Qualifiers()) << " is " << (prepend + result + append) << "\n";

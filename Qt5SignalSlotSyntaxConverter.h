@@ -2,6 +2,7 @@
 #include <clang/Sema/Sema.h>
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/Basic/SourceLocation.h>
+#include <clang/Basic/Version.h>
 #include <clang/Tooling/Refactoring.h>
 #include <atomic>
 
@@ -22,12 +23,23 @@ public:
         ReplaceOther
     };
 
-    ConnectCallMatcher(clang::tooling::Replacements* reps, const std::vector<std::string>& files)
+    ConnectCallMatcher(
+#if CLANG_VERSION_MAJOR >= 7
+           std::map<std::string, clang::tooling::Replacements>& reps,
+#else
+           clang::tooling::Replacements* reps,
+#endif
+           const std::vector<std::string>& files)
         : foundMatches(0), convertedMatches(0), skippedMatches(0), failedMatches(0), replacements(reps),
           refactoringFiles(files) {}
     virtual void run(const MatchFinder::MatchResult& result) override;
     void convert(const MatchFinder::MatchResult& result);
+
+#if CLANG_VERSION_MAJOR >= 7
+    bool handleBeginSource(clang::CompilerInstance &CI) override;
+#else
     bool handleBeginSource(clang::CompilerInstance &CI, llvm::StringRef Filename) override;
+#endif
     void handleEndSource() override;
 
     void printStats() const;
@@ -70,7 +82,11 @@ private:
     clang::Preprocessor* pp = nullptr;
     clang::ASTContext* lastAstContext = nullptr;
     clang::QualType constCharPtrType;
+#if CLANG_VERSION_MAJOR >= 7
+    std::map<std::string, clang::tooling::Replacements>& replacements;
+#else
     clang::tooling::Replacements* replacements = nullptr;
+#endif
     const std::vector<std::string>& refactoringFiles;
     uint badQPrivateSlotDiagId = 0;
 };
@@ -78,7 +94,13 @@ private:
 
 class ConnectConverter {
 public:
-    ConnectConverter(clang::tooling::Replacements* reps, const std::vector<std::string>& files) : matcher(reps, files) {}
+    ConnectConverter(
+#if CLANG_VERSION_MAJOR >= 7
+           std::map<std::string, clang::tooling::Replacements>& reps,
+#else
+           clang::tooling::Replacements* reps,
+#endif
+           const std::vector<std::string>& files) : matcher(reps, files) {}
     void setupMatchers(MatchFinder* matchFinder);
     void printStats() const {
         matcher.printStats();

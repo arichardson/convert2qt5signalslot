@@ -64,6 +64,13 @@ static std::string expr2str(const Expr *d, ASTContext* ctx) {
     return std::string(start, size_t(end - start));
 }
 
+
+#if CLANG_VERSION_MAJOR >= 7
+auto getMethodParams = [](const FunctionDecl* method) { return method->parameters(); };
+#else
+auto getMethodParams = [](const FunctionDecl* method) { return method->params(); };
+#endif
+
 /** Signal/Slot string literals are always
  * "0" or "1" or "2" followed by the method name (e.g. "valueChanged(int)" )
  * then a null character, and then filename + linenumber
@@ -112,7 +119,13 @@ void ConnectCallMatcher::addReplacement(SourceRange range, const std::string& re
     csr.getEnd().print(outs(), ctx->getSourceManager());
     outs() << ")\n";
 
+#if CLANG_VERSION_MAJOR >= 7
+    const std::string filename = getRealPath(ctx->getSourceManager().getFilename(range.getBegin()));
+    auto Err = replacements[filename].add(Replacement(ctx->getSourceManager(), csr, replacement));
+    llvm::logAllUnhandledErrors(std::move(Err), llvm::errs(), "converter");
+#else
     replacements->insert(Replacement(ctx->getSourceManager(), csr, replacement));
+#endif
 }
 
 
@@ -642,7 +655,7 @@ static size_t findBestMatch(const StringLiteral* connectStr, const T& methods, G
         const FunctionDecl* decl = getter(methods, i);
         llvm::SmallString<64> paramsStr;
         bool first = true;
-        for (ParmVarDecl* param : decl->params()) {
+        for (ParmVarDecl* param : getMethodParams(decl)) {
             if (first) {
                 first = false;
             } else {
@@ -753,8 +766,9 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
     if (!prepend.empty()) {
         result = prepend + ", ";
     }
+
     result += "[&]("; // just capture everything
-    join(&result, info.method->params(), ", ", [&](ParmVarDecl* param) {
+    join(&result, getMethodParams(info.method), ", ", [&](ParmVarDecl* param) {
         return (getLeastQualifiedName(param->getType(), p.containingFunction, p.call, verboseMode,
                 &currentCompilerInstance->getASTContext()) + " " + param->getName()).str();
     });
@@ -767,7 +781,7 @@ std::string ConnectCallMatcher::handleQ_PRIVATE_SLOT(const CXXRecordDecl* type, 
     result += "->";
     result += info.method->getName();
     result += "(";
-    join(&result, info.method->params(), ", ", [](ParmVarDecl* param) {
+    join(&result, getMethodParams(info.method), ", ", [](ParmVarDecl* param) {
         return param->getName();
     });
     result += "); }";
@@ -824,7 +838,7 @@ std::string ConnectCallMatcher::calculateReplacementStr(const CXXRecordDecl* typ
         replacement += qualifiedName;
         replacement += "::*)(";
         if (chosenMethod->getNumParams() > 0) {
-            join(&replacement, chosenMethod->params(), ',', [&](ParmVarDecl* param) {
+            join(&replacement, getMethodParams(chosenMethod), ',', [&](ParmVarDecl* param) {
                 return getLeastQualifiedName(param->getType(), p.containingFunction, p.call, verboseMode, &currentCompilerInstance->getASTContext());
             });
         }
@@ -848,7 +862,7 @@ void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
     // !!!! when using asString it is very important to write "const char *" and not "const char*", since that doesn't work
     // handle both connect overloads with SIGNAL() and SLOT()
     matchFinder->addMatcher(id("callExpr", callExpr(
-#if CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 8
+#if CLANG_VERSION_MAJOR >= 4 || (CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 8)
             hasDeclaration(id("decl", cxxMethodDecl(
 #else
             hasDeclaration(id("decl", methodDecl(
@@ -861,9 +875,12 @@ void ConnectConverter::setupMatchers(MatchFinder* matchFinder) {
             hasAncestor(id("parent", functionDecl()))
         )), &matcher);
 }
-
+#if CLANG_VERSION_MAJOR >= 7
+bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI) {
+#else
 bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::StringRef Filename) {
     outs() << "Handling file: " << Filename << "\n";
+#endif
     currentCompilerInstance = &CI;
     Preprocessor& pp = currentCompilerInstance->getPreprocessor();
     // Make sure stddef.h is found
@@ -872,7 +889,7 @@ bool ConnectCallMatcher::handleBeginSource(clang::CompilerInstance& CI, llvm::St
         DirectoryLookup dl = DirectoryLookup(builtinIncludes, SrcMgr::C_ExternCSystem, false);
         pp.getHeaderSearchInfo().AddSearchPath(dl, true);
     }
-#if CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 6
+#if CLANG_VERSION_MAJOR >= 4 || (CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 6)
     // 3.6 expects a unique_ptr here
     pp.addPPCallbacks(llvm::make_unique<ConverterPPCallbacks>(pp));
     CI.getDiagnostics().setClient(new ClangUtils::DiagConsumer(CI.getDiagnostics().takeClient().release()));

@@ -16,13 +16,16 @@ public:
         undefWarningDiagId = pp.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning, "undefining '%0' macro");
         redefWarningDiagId = pp.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning, "redefining '%0' macro");
     }
-    virtual ~ConverterPPCallbacks();
+    ~ConverterPPCallbacks() override;
 
     void addQ_PRIVATE_SLOT_definition(clang::SourceLocation origLoc);
     void handleMacroUndefined(const clang::Token& token);
 protected:
 
-#if CLANG_VERSION_MAJOR >= 3 && CLANG_VERSION_MINOR >= 7
+#if CLANG_VERSION_MAJOR >= 7
+    void MacroUndefined(const clang::Token& token, const clang::MacroDefinition&,
+                        const clang::MacroDirective*) override {
+#elif CLANG_VERSION_MAJOR >= 4 || (CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR >= 7)
     void MacroUndefined(const clang::Token& token, const clang::MacroDefinition&) override {
 #else
     void MacroUndefined(const clang::Token& token, const clang::MacroDirective*) override {

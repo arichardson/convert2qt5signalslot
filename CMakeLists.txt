@@ -45,6 +45,10 @@ set(REQUIRED_CLANG_LIBS Clang::Tooling)
 if(${Clang_VERSION} VERSION_GREATER 3.5.0)
   list(APPEND REQUIRED_CLANG_LIBS Clang::ToolingCore)
 endif()
+if(${Clang_VERSION} VERSION_GREATER_EQUAL 7.0.0)
+  list(APPEND REQUIRED_CLANG_LIBS Clang::Format)
+  list(APPEND REQUIRED_CLANG_LIBS Clang::ToolingInclusions)
+endif()
 list(APPEND REQUIRED_CLANG_LIBS
   Clang::Rewrite
   Clang::ASTMatchers
