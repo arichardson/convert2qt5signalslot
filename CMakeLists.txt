@@ -7,7 +7,16 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 find_package(Clang 3.5 MODULE REQUIRED)
-find_package(Qt5Core 5.3.0 CONFIG REQUIRED)
+
+set(_qt_guess_dirs)
+if (APPLE)
+  execute_process(COMMAND brew --prefix qt OUTPUT_VARIABLE _qt_homebrew_prefix ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if (_qt_homebrew_prefix)
+    list(APPEND _qt_guess_dirs "${_qt_homebrew_prefix}")
+  endif()
+  message(STATUS "Found homebrew installation of Qt: ${_qt_homebrew_prefix}")
+endif()
+find_package(Qt5Core 5.3.0 CONFIG REQUIRED HINTS ${_qt_guess_dirs})
 
 # LLVM_DEFINITIONS are not added to the imported targets...
 add_definitions(${LLVM_DEFINITIONS})
