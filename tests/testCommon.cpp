@@ -70,11 +70,16 @@ bool codeCompiles(const std::string& code, const AdditionalFiles& additionalFile
 }
 
 int testMain(std::string input, std::string expected, int found, int converted, const std::vector<const char*>& converterOptions) {
-    llvm::sys::PrintStackTraceOnErrorSignal();
+    llvm::sys::PrintStackTraceOnErrorSignal("convert2qtsignalslot");
     StringList refactoringFiles { FILE_NAME };
     MatchFinder matchFinder;
+#if CLANG_VERSION_MAJOR >= 7
+    std::map<std::string, Replacements> replacements;
+    ConnectConverter converter(replacements, refactoringFiles);
+#else
     Replacements replacements;
-    ConnectConverter converter(&replacements, refactoringFiles);
+    ConnectConverter converter(replacements, refactoringFiles);
+#endif
     converter.setupMatchers(&matchFinder);
     auto factory = newFrontendActionFactory(&matchFinder, converter.sourceCallback());
     auto action = factory->create();
@@ -107,14 +112,22 @@ int testMain(std::string input, std::string expected, int found, int converted, 
     }
 
     ssize_t offsetAdjust = 0;
-    for (const Replacement& rep : replacements) {
-        if (rep.getFilePath() != FILE_NAME) {
-            outs() << "Attempting to write to illegal file:" << rep.getFilePath() << "\n";
-            success = false;
+#if CLANG_VERSION_MAJOR >= 7
+    for (const auto& it : replacements) {
+        for (const Replacement& rep : it.second) {
+#else
+        for (const Replacement& rep : replacements) {
+#endif
+            if (rep.getFilePath() != FILE_NAME) {
+                outs() << "Attempting to write to illegal file:" << rep.getFilePath() << "\n";
+                success = false;
+            }
+            input.replace(size_t(offsetAdjust + ssize_t(rep.getOffset())), rep.getLength(), rep.getReplacementText().str());
+            offsetAdjust += ssize_t(rep.getReplacementText().size()) - ssize_t(rep.getLength());
         }
-        input.replace(size_t(offsetAdjust + ssize_t(rep.getOffset())), rep.getLength(), rep.getReplacementText().str());
-        offsetAdjust += ssize_t(rep.getReplacementText().size()) - ssize_t(rep.getLength());
+#if CLANG_VERSION_MAJOR >= 7
     }
+#endif
     outs() << "\nComparing result with expected result...";
     if (input == expected) {
         colouredOut(llvm::raw_ostream::GREEN) << " Success!\n";
